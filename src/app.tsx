@@ -1,3 +1,20 @@
+import { useCallback, useEffect, useState, type ReactNode } from "react";
+import {
+  BookOpen,
+  Check,
+  ChevronRight,
+  Crown,
+  Dumbbell,
+  Heart,
+  Home,
+  MessageCircle,
+  RotateCcw,
+  Send,
+  Trophy,
+  Users,
+  X,
+} from "lucide-react";
+
 const I = {
   indigo:"#6366F1", indigoL:"#EDE9FE", indigoT:"#6D28D9",
   teal:"#10B981", tealL:"#D1FAE5",
@@ -1294,5 +1311,3 @@ export default function App(){
     </div>
   );
 }
-EOF
-echo "Done — $(wc -l < /home/claude/comeback/src/App.tsx) lines"
