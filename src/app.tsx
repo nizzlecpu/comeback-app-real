@@ -1296,3 +1296,417 @@ export default function App(){
 }
 EOF
 echo "Done — $(wc -l < /home/claude/comeback/src/App.tsx) lines"
+export const PLAN_PRO_URL   = "https://buy.stripe.com/5kQ3cu5P36NtcWh1ZC67S00";
+export const PLAN_ELITE_URL = "https://buy.stripe.com/dRm9AS91ffjZbSd1ZC67S01";
+
+export const SPORTS = [
+  {id:"basketball",label:"Basketball",icon:"🏀",color:"#FF6B00",athlete:"LeBron James",liveUsers:142,
+   img:"https://images.unsplash.com/photo-1546519638-68e109498ffc?w=400&q=80",
+   quotes:['"Ice 20 min, elevate, compress. Don\'t rush the timeline."','"Sleep is my best recovery tool. 12 hours a night."','"The hardest day is day 3. Push through it."','"30g protein within 20 min of stopping."','"Mind over matter is real but so is the protocol."']},
+  {id:"football",label:"Football",icon:"🏈",color:"#22CC00",athlete:"Patrick Mahomes",liveUsers:198,
+   img:"https://images.unsplash.com/photo-1566577739112-5180d4bf9390?w=400&q=80",
+   quotes:['"Work range of motion before resistance."','"Visualization during recovery is underrated."','"Cold tub is non-negotiable. 8 minutes every session."','"Your PT is your co-coach."','"Fear of re-injury is the real enemy."']},
+  {id:"soccer",label:"Soccer",icon:"⚽",color:"#38BDF8",athlete:"Cristiano Ronaldo",liveUsers:247,
+   img:"https://images.unsplash.com/photo-1574629810360-7efbbe195018?w=400&q=80",
+   quotes:['"Cold water immersion after every session."','"Sleep 8 hours minimum."','"Nutrition is 50% of recovery."','"Flexibility saved my knees."','"Coming back at 95% beats returning at 75%."']},
+  {id:"baseball",label:"Baseball",icon:"⚾",color:"#FF3B3B",athlete:"Shohei Ohtani",liveUsers:87,
+   img:"https://images.unsplash.com/photo-1508344928928-7165b67de128?w=400&q=80",
+   quotes:['"Rotator cuff work is never optional."','"Arm care starts before you feel pain."','"I track HRV every morning."','"Recovery is just another form of training."','"Cross-training in the pool saved my shoulder."']},
+  {id:"tennis",label:"Tennis",icon:"🎾",color:"#84CC16",athlete:"Serena Williams",liveUsers:63,
+   img:"https://images.unsplash.com/photo-1554068865-24cecd4e34b8?w=400&q=80",
+   quotes:['"Listen to inflammation signals."','"Mental game breaks down first in long recoveries."','"Eccentric strengthening for tendons."','"Cry and then do the work."','"Work with a sports dietitian."']},
+  {id:"track",label:"Track & Field",icon:"🏃",color:"#A855F7",athlete:"Usain Bolt",liveUsers:45,
+   img:"https://images.unsplash.com/photo-1461896836934-ffe607ba8211?w=400&q=80",
+   quotes:['"Hip flexor mobility is the unlock."','"The body remembers what you build."','"Speed is neurological as much as muscular."','"Water running kept my fitness alive."','"God didn\'t give you these legs to sit."']},
+  {id:"swimming",label:"Swimming",icon:"🏊",color:"#38BDF8",athlete:"Michael Phelps",liveUsers:38,
+   img:"https://images.unsplash.com/photo-1530549387789-4c1017266635?w=400&q=80",
+   quotes:['"Shoulder recovery is 60% sleep."','"Get a therapist, not just a PT."','"Recovery is a race too."','"Show up daily, even at 20%."','"Gratitude practice kept me from spiraling."']},
+  {id:"volleyball",label:"Volleyball",icon:"🏐",color:"#F59E0B",athlete:"Misty May-Treanor",liveUsers:29,
+   img:"https://images.unsplash.com/photo-1612872087720-bb876e2e67d1?w=400&q=80",
+   quotes:['"Single-leg balance from day 3."','"Smart is smarter than tough."','"Core stability is the foundation."','"Protocol and prayer."','"Track your swelling daily."']},
+  {id:"golf",label:"Golf",icon:"⛳",color:"#22CC00",athlete:"Tiger Woods",liveUsers:54,
+   img:"https://images.unsplash.com/photo-1535131749006-b7f58c99034b?w=400&q=80",
+   quotes:['"Core is everything."','"Never skip the small work."','"Patience is a skill."','"What you rebuild is more valuable."','"Ego in the weight room will re-injure you."']},
+  {id:"mma",label:"MMA / Combat",icon:"🥊",color:"#FF3B3B",athlete:"Conor McGregor",liveUsers:176,
+   img:"https://images.unsplash.com/photo-1549719386-74dfcbf7dbed?w=400&q=80",
+   quotes:['"Fascia work daily separates 6-month from 4."','"I used doubt as fuel every day."','"Ice, elevation, time. The shortcut IS the protocol."','"Isolation kills motivation."','"Every champion has a comeback story."']},
+  {id:"gymnastics",label:"Gymnastics",icon:"🤸",color:"#EC4899",athlete:"Simone Biles",liveUsers:41,
+   img:"https://images.unsplash.com/photo-1577474994498-5d7693a5c9d9?w=400&q=80",
+   quotes:['"Mental recovery is as real as physical."','"Taking time off was the bravest decision."','"Trust your body\'s timeline."','"Fear is just another skill to master."','"The body will catch up to the mind."']},
+  {id:"cycling",label:"Cycling",icon:"🚴",color:"#6366F1",athlete:"Chris Froome",liveUsers:33,
+   img:"https://images.unsplash.com/photo-1558981285-6f0c94958bb6?w=400&q=80",
+   quotes:['"Rebuild cadence before power."','"Doctors said never race again. I won Vuelta."','"Small wins compound."','"My physio was more important than my coach."','"Let yourself feel it."']},
+  {id:"hockey",label:"Hockey",icon:"🏒",color:"#38BDF8",athlete:"Sidney Crosby",liveUsers:89,
+   img:"https://images.unsplash.com/photo-1515703407324-5f753afd8be8?w=400&q=80",
+   quotes:['"Concussion protocol is sacred."','"Cognitive rest is a skill."','"Sleep became medicine."','"A good team respects your recovery."','"Fear of another hit is real by phase 3."']},
+  {id:"rugby",label:"Rugby",icon:"🏉",color:"#F59E0B",athlete:"Richie McCaw",liveUsers:47,
+   img:"https://images.unsplash.com/photo-1603575448360-153f093fd0b2?w=400&q=80",
+   quotes:['"Proprioception drills — religiously."','"Sometimes playing through it is wrong."','"Week 3 is the mental valley."','"Listen to your doctor."','"Cold water changed my recovery rate."']},
+  {id:"lacrosse",label:"Lacrosse",icon:"🥍",color:"#F97316",athlete:"Paul Rabil",liveUsers:25,
+   img:"https://images.unsplash.com/photo-1626248801379-51a0748a5f96?w=400&q=80",
+   quotes:['"Eccentric loading is the cheat code."','"Second ACL — came back 3 weeks early."','"Fix the root cause."','"Faith over fear."','"Every drill served my return."']},
+];
+
+export const INJURIES = [
+  {id:"acl",label:"ACL Tear",icon:"🦵",weeks:36,phase1:"Weeks 1–6: Swelling control, quad activation, ROM 0–90°. Ice 20 min/hr.",phase2:"Weeks 7–16: Strength rebuild, single-leg press, bike, Nordic curls wk 10.",phase3:"Weeks 17–36: Sport-specific drills, hop test >85% symmetry."},
+  {id:"meniscus",label:"Meniscus Tear",icon:"🦵",weeks:24,phase1:"Weeks 1–4: Crutches, ice, pain management. Straight-leg raises only. No flexion past 90°.",phase2:"Weeks 5–12: Quad/hamstring balance, bike week 6. No twisting.",phase3:"Weeks 13–24: Lateral movement, cutting drills, physician clearance."},
+  {id:"ankle",label:"Ankle Sprain",icon:"🦶",weeks:8,phase1:"Days 1–7: POLICE protocol. No weight-bearing Grade 2+.",phase2:"Weeks 2–4: Proprioception, resistance bands, calf raises.",phase3:"Weeks 5–8: Plyometrics, single-leg balance over 30 seconds."},
+  {id:"hamstring",label:"Hamstring Strain",icon:"🦵",weeks:12,phase1:"Weeks 1–2: Active rest, ice. NO passive static stretching — increases re-tear risk.",phase2:"Weeks 3–6: Nordic eccentric program (Askling protocol), bike week 3.",phase3:"Weeks 7–12: Graduated sprint 60 to 100% with weekly H-test."},
+  {id:"rotator",label:"Rotator Cuff",icon:"💪",weeks:20,phase1:"Weeks 1–6: Sling, pendulums, zero active elevation. Cryotherapy 20 min 5x/day.",phase2:"Weeks 7–14: Bands, scapular stability. External/internal rotation at 0 degrees.",phase3:"Weeks 15–20: Progressive overhead, throwing program. ASES score 85+."},
+  {id:"achilles",label:"Achilles Tendon",icon:"🦶",weeks:26,phase1:"Weeks 1–8: Boot immobilization. Upper body only.",phase2:"Weeks 9–18: Alfredson eccentric heel drops 3x15 twice daily (Grade A evidence).",phase3:"Weeks 19–26: Walk to jog to run to sprint. VISA-A score 90+ before clearance."},
+  {id:"concussion",label:"Concussion",icon:"🧠",weeks:6,phase1:"Days 1–5: Full cognitive and physical rest. No screens. Symptom check every 2hrs.",phase2:"Weeks 2–4: Sub-symptom aerobic only. Buffalo Treadmill Test protocol.",phase3:"Weeks 5–6: Non-contact sport drills. SCAT5 plus physician sign-off required."},
+  {id:"back",label:"Lower Back Strain",icon:"🔙",weeks:8,phase1:"Weeks 1–2: McKenzie extension protocol. Cat-cow, bird-dog, decompression walks.",phase2:"Weeks 3–5: McGill Big 3, dead bug progression, hip hinge patterning.",phase3:"Weeks 6–8: Deadlift at bodyweight, RDL, core loading progression."},
+  {id:"shin",label:"Shin Splints",icon:"🦵",weeks:6,phase1:"Days 1–10: Rest, ice massage 3x/day, calf stretching.",phase2:"Weeks 2–4: Swim, bike, calf strengthening. Arch support check.",phase3:"Weeks 5–6: Walk-run intervals, gait analysis, 10% volume rule."},
+  {id:"shoulder",label:"Shoulder Dislocation",icon:"💪",weeks:12,phase1:"Weeks 1–4: Sling. No elevation above 90 degrees. Cryotherapy plus NSAIDs.",phase2:"Weeks 5–8: Band ER/IR, scapular stabilization, isometric strengthening.",phase3:"Weeks 9–12: Overhead cleared. Apprehension test negative before contact."},
+  {id:"knee",label:"Knee Pain",icon:"🦵",weeks:10,phase1:"Weeks 1–2: RICE, quad sets, avoid stairs. Inflammation control priority.",phase2:"Weeks 3–6: Bike, step-ups, mini-squats 0 to 45 degrees.",phase3:"Weeks 7–10: Progressive load, sport-specific movement reintroduction."},
+  {id:"wrist",label:"Wrist Fracture",icon:"🖐",weeks:16,phase1:"Weeks 1–6: Cast immobilization. Bone nutrition: calcium, D3, K2.",phase2:"Weeks 7–12: ROM restoration, grip putty, low-resistance wrist curls.",phase3:"Weeks 13–16: Progressive load tolerance, sport grip patterns."},
+];
+
+export const SEVERITIES = [
+  {id:"mild",label:"Mild",icon:"🟡",desc:"Minor discomfort, partial activity possible",color:"#F59E0B",bg:"#F59E0B20"},
+  {id:"moderate",label:"Moderate",icon:"🟠",desc:"Significant pain, limited activity",color:"#F97316",bg:"#F9731620"},
+  {id:"severe",label:"Severe",icon:"🔴",desc:"Major injury, minimal activity",color:"#FF3B3B",bg:"#FF3B3B20"},
+  {id:"post_surgery",label:"Post-Surgery",icon:"🏥",desc:"Surgical recovery, strict protocol required",color:"#6366F1",bg:"#6366F120"},
+];
+
+export const GOALS_LIST = [
+  {id:"return",label:"Return to Sport",icon:"🏆",desc:"Full competitive return"},
+  {id:"pain",label:"Pain-Free Living",icon:"💆",desc:"Manage pain, improve daily function"},
+  {id:"fitness",label:"Maintain Fitness",icon:"💪",desc:"Stay strong while healing"},
+  {id:"fast",label:"Fastest Recovery",icon:"⚡",desc:"Optimise every variable"},
+];
+
+export const SUPPLEMENTS = [
+  {id:"d3",label:"Vitamin D3",dose:"2,000 IU",time:"7:00 AM",with:"breakfast",note:"Bone and immune support. Take with a fatty meal for best absorption.",color:"#F59E0B",bg:"#F59E0B20"},
+  {id:"omega3",label:"Omega-3",dose:"1g EPA+DHA",time:"8:00 AM",with:"breakfast",note:"Reduces inflammation 25–40%. Take with food to avoid aftertaste.",color:"#38BDF8",bg:"#38BDF820"},
+  {id:"vitc",label:"Vitamin C",dose:"500mg",time:"10:00 AM",with:"snack",note:"Collagen synthesis for tendons. Pairs best with collagen peptides.",color:"#F97316",bg:"#F9731620"},
+  {id:"collagen",label:"Collagen Peptides",dose:"10g",time:"10:00 AM",with:"pre-rehab",note:"Take 30 min before rehab + Vitamin C for maximum tendon synthesis.",color:"#EC4899",bg:"#EC489920"},
+  {id:"zinc",label:"Zinc",dose:"15mg",time:"1:00 PM",with:"lunch",note:"Tissue repair and immune. Take with food — causes nausea on empty stomach.",color:"#22CC00",bg:"#22CC0020"},
+  {id:"mag",label:"Magnesium",dose:"400mg",time:"9:00 PM",with:"dinner",note:"Take at night — aids sleep quality and muscle relaxation.",color:"#A855F7",bg:"#A855F720"},
+];
+
+export const DIET_GUIDE = [
+  {category:"🐟 Protein (Every Meal)",foods:"Salmon, sardines, eggs, chicken, Greek yogurt, lentils",avoid:"Processed deli meats, fried proteins"},
+  {category:"🥦 Anti-Inflammatory",foods:"Turmeric, ginger, leafy greens, berries, tart cherry, olive oil",avoid:"Refined sugar, white bread, vegetable oils"},
+  {category:"🦴 Bone and Tendon",foods:"Dairy or fortified alternatives, bone broth, leafy greens, fatty fish",avoid:"Excess alcohol, high-sodium foods"},
+  {category:"⚡ Energy Pre-Workout",foods:"Sweet potato, oats, banana, dates",avoid:"Simple sugars, alcohol — delays recovery 48hrs+"},
+  {category:"💧 Hydration",foods:"3–4L water daily, electrolytes if sweating, coconut water",avoid:"Sports drinks with HFCS, energy drinks"},
+];
+
+export type Task = {time:string; task:string; icon:string; iconColor:string; iconBg:string};
+
+export const DAY_PROTOCOLS: Task[][] = [
+  [
+    {time:"6:30 AM",task:"Hydrate 500ml water with a pinch of sea salt for electrolytes before anything else",icon:"💧",iconColor:"#38BDF8",iconBg:"#38BDF820"},
+    {time:"7:00 AM",task:"5-min deep breathing (4-7-8 method) plus gentle mobility to loosen the injured area",icon:"🌅",iconColor:"#F59E0B",iconBg:"#F59E0B20"},
+    {time:"8:00 AM",task:"Breakfast plus morning supplements: D3 2,000 IU and Omega-3 1g with food",icon:"💊",iconColor:"#6366F1",iconBg:"#6366F120"},
+    {time:"10:00 AM",task:"Rehab session A: injury-specific exercises 3 sets. Focus on controlled movement, zero pain",icon:"🏋️",iconColor:"#39FF14",iconBg:"#39FF1420"},
+    {time:"10:30 AM",task:"Vitamin C 500mg plus Collagen 10g immediately after rehab — collagen synthesis window",icon:"💊",iconColor:"#EC4899",iconBg:"#EC489920"},
+    {time:"12:00 PM",task:"Lunch: 40g protein (salmon or chicken) plus complex carbs plus leafy greens. Zinc 15mg with meal",icon:"🥗",iconColor:"#22CC00",iconBg:"#22CC0020"},
+    {time:"2:00 PM",task:"Ice and compression 20 min on injury site plus elevation above heart to reduce inflammation",icon:"🧊",iconColor:"#38BDF8",iconBg:"#38BDF820"},
+    {time:"4:00 PM",task:"Low-impact cardio: 20 min stationary bike or pool walk to maintain base fitness",icon:"🚴",iconColor:"#A855F7",iconBg:"#A855F720"},
+    {time:"7:00 PM",task:"Dinner: 40g protein plus anti-inflammatory fats (olive oil, avocado). Magnesium 400mg",icon:"🍽️",iconColor:"#39FF14",iconBg:"#39FF1420"},
+    {time:"9:00 PM",task:"10-min foam roll avoiding injured area, light stretching, sleep target 9 hours",icon:"😴",iconColor:"#6366F1",iconBg:"#6366F120"},
+  ],
+  [
+    {time:"6:30 AM",task:"Morning hydration 500ml. Rate injury pain 1 to 10 before getting out of bed",icon:"💧",iconColor:"#38BDF8",iconBg:"#38BDF820"},
+    {time:"7:00 AM",task:"10-min dynamic warm-up: leg swings, arm circles, hip circles — activate without loading",icon:"🌅",iconColor:"#F59E0B",iconBg:"#F59E0B20"},
+    {time:"8:00 AM",task:"Breakfast plus D3 2,000 IU and Omega-3 1g. Take with fat-containing meal for absorption",icon:"💊",iconColor:"#6366F1",iconBg:"#6366F120"},
+    {time:"10:00 AM",task:"Rehab session B: add one rep or 5% more resistance than last session. Progressive overload",icon:"🏋️",iconColor:"#39FF14",iconBg:"#39FF1420"},
+    {time:"10:30 AM",task:"Collagen 10g plus Vitamin C 500mg post-session. 30-min window for tendon synthesis",icon:"💊",iconColor:"#EC4899",iconBg:"#EC489920"},
+    {time:"12:00 PM",task:"Lunch: 40g protein plus sweet potato plus spinach salad. Zinc 15mg with meal",icon:"🥗",iconColor:"#22CC00",iconBg:"#22CC0020"},
+    {time:"2:30 PM",task:"Ice massage using frozen cup on injury 10 min. Reduces localized inflammation better than ice pack",icon:"🧊",iconColor:"#38BDF8",iconBg:"#38BDF820"},
+    {time:"4:00 PM",task:"Upper body strength non-injured muscles: 3x15 rows, press, curls to maintain muscle mass",icon:"💪",iconColor:"#A855F7",iconBg:"#A855F720"},
+    {time:"7:00 PM",task:"Dinner: salmon or sardines plus quinoa plus broccoli. Magnesium 400mg before bed",icon:"🍽️",iconColor:"#39FF14",iconBg:"#39FF1420"},
+    {time:"9:30 PM",task:"Visualization: 5 min eyes closed, picture yourself fully recovered competing. Then sleep",icon:"😴",iconColor:"#6366F1",iconBg:"#6366F120"},
+  ],
+  [
+    {time:"6:30 AM",task:"Hydrate 500ml plus tart cherry juice 8oz — natural anti-inflammatory reducing DOMS by 22%",icon:"💧",iconColor:"#38BDF8",iconBg:"#38BDF820"},
+    {time:"7:00 AM",task:"Contrast shower: 2 min warm then 30 sec cold, repeat 4 cycles. Boosts circulation and recovery",icon:"🌅",iconColor:"#F59E0B",iconBg:"#F59E0B20"},
+    {time:"8:00 AM",task:"High-protein breakfast: 3 eggs plus Greek yogurt. D3 plus Omega-3 with meal",icon:"💊",iconColor:"#6366F1",iconBg:"#6366F120"},
+    {time:"10:00 AM",task:"Active recovery day: 50% intensity rehab. Focus on range of motion not load today",icon:"🏋️",iconColor:"#39FF14",iconBg:"#39FF1420"},
+    {time:"10:30 AM",task:"Collagen 10g plus Vitamin C 500mg post-session",icon:"💊",iconColor:"#EC4899",iconBg:"#EC489920"},
+    {time:"12:00 PM",task:"Lunch: 40g protein. Anti-inflammatory focus: turmeric in meal, olive oil dressing",icon:"🥗",iconColor:"#22CC00",iconBg:"#22CC0020"},
+    {time:"2:00 PM",task:"Pool session 20 min OR ice bath 10 min at 55F if available — elite recovery method",icon:"🏊",iconColor:"#38BDF8",iconBg:"#38BDF820"},
+    {time:"4:30 PM",task:"Core stability: dead bug 3x10, pallof press 3x12, bird-dog 3x10 each side",icon:"💪",iconColor:"#A855F7",iconBg:"#A855F720"},
+    {time:"7:00 PM",task:"Dinner: chicken or tofu plus lentils plus vegetables. Magnesium 400mg",icon:"🍽️",iconColor:"#39FF14",iconBg:"#39FF1420"},
+    {time:"9:00 PM",task:"Gratitude journal: write 3 things you CAN do today. Sleep 9 hours",icon:"😴",iconColor:"#6366F1",iconBg:"#6366F120"},
+  ],
+  [
+    {time:"6:30 AM",task:"500ml water. Photograph the injury weekly to track swelling reduction over time",icon:"💧",iconColor:"#38BDF8",iconBg:"#38BDF820"},
+    {time:"7:00 AM",task:"10-min yoga flow for recovery: hip flexors, hamstrings, shoulders, spine",icon:"🌅",iconColor:"#F59E0B",iconBg:"#F59E0B20"},
+    {time:"8:00 AM",task:"Breakfast: oatmeal plus protein powder plus berries. D3 plus Omega-3 with meal",icon:"💊",iconColor:"#6366F1",iconBg:"#6366F120"},
+    {time:"10:00 AM",task:"Rehab session C: neuromuscular focus. Balance drills and proprioception training today",icon:"🏋️",iconColor:"#39FF14",iconBg:"#39FF1420"},
+    {time:"10:30 AM",task:"Collagen plus Vitamin C immediately post-session",icon:"💊",iconColor:"#EC4899",iconBg:"#EC489920"},
+    {time:"12:00 PM",task:"Lunch: 35–40g protein. Zinc 15mg. Add ginger to meal for gingerol anti-inflammatory compound",icon:"🥗",iconColor:"#22CC00",iconBg:"#22CC0020"},
+    {time:"3:00 PM",task:"Compression sleeve 30 min OR legs-up-wall 20 min to reduce edema",icon:"🧊",iconColor:"#38BDF8",iconBg:"#38BDF820"},
+    {time:"4:30 PM",task:"Mental skills: sport psychology content OR journaling recovery goals and progress",icon:"🧠",iconColor:"#A855F7",iconBg:"#A855F720"},
+    {time:"7:00 PM",task:"Dinner: fatty fish or lean beef plus sweet potato plus greens. Magnesium 400mg",icon:"🍽️",iconColor:"#39FF14",iconBg:"#39FF1420"},
+    {time:"9:00 PM",task:"No screens 1hr before sleep. Read or meditate. 9-hr sleep target",icon:"😴",iconColor:"#6366F1",iconBg:"#6366F120"},
+  ],
+  [
+    {time:"6:30 AM",task:"Hydrate 500ml. Even 5-min gentle walking or crutch-assisted movement boosts morning circulation",icon:"💧",iconColor:"#38BDF8",iconBg:"#38BDF820"},
+    {time:"7:00 AM",task:"Body check: rate pain, stiffness, energy 1 to 10. Adjust today intensity if pain above 5",icon:"🌅",iconColor:"#F59E0B",iconBg:"#F59E0B20"},
+    {time:"8:00 AM",task:"Breakfast plus D3 plus Omega-3. High-calorie day if energy is low — do not under-eat during recovery",icon:"💊",iconColor:"#6366F1",iconBg:"#6366F120"},
+    {time:"10:00 AM",task:"Rehab session D: eccentric focus. Slow 3-second lowering phase. Eccentric loading heals tendons",icon:"🏋️",iconColor:"#39FF14",iconBg:"#39FF1420"},
+    {time:"10:30 AM",task:"Collagen 10g plus Vitamin C 500mg. Protein shake within 20 min post-session",icon:"💊",iconColor:"#EC4899",iconBg:"#EC489920"},
+    {time:"12:30 PM",task:"Lunch: eggs plus whole grains plus leafy greens. Zinc 15mg with meal",icon:"🥗",iconColor:"#22CC00",iconBg:"#22CC0020"},
+    {time:"2:30 PM",task:"20-min stationary bike easy pace. Pedaling lubricates joints without impact stress",icon:"🚴",iconColor:"#38BDF8",iconBg:"#38BDF820"},
+    {time:"4:00 PM",task:"Stretch and foam roll 10 min full body avoiding injured site: quads, glutes, calves",icon:"💪",iconColor:"#A855F7",iconBg:"#A855F720"},
+    {time:"7:00 PM",task:"Dinner: Greek yogurt plus nuts plus fruit OR full protein meal. Magnesium 400mg",icon:"🍽️",iconColor:"#39FF14",iconBg:"#39FF1420"},
+    {time:"9:00 PM",task:"Sleep hygiene: cool room 65 to 68F, dark, no phone. 9-hr recovery window",icon:"😴",iconColor:"#6366F1",iconBg:"#6366F120"},
+  ],
+  [
+    {time:"6:30 AM",task:"500ml water plus electrolyte tablet if yesterday was a heavy sweat session",icon:"💧",iconColor:"#38BDF8",iconBg:"#38BDF820"},
+    {time:"7:00 AM",task:"10-min mindfulness meditation. Reduces cortisol which is proven to slow tissue healing",icon:"🌅",iconColor:"#F59E0B",iconBg:"#F59E0B20"},
+    {time:"8:00 AM",task:"High-protein start: protein shake plus eggs. D3 plus Omega-3 with meal",icon:"💊",iconColor:"#6366F1",iconBg:"#6366F120"},
+    {time:"10:00 AM",task:"Heavy rehab day: push to 80% effort if pain allows. Log reps and resistance used",icon:"🏋️",iconColor:"#39FF14",iconBg:"#39FF1420"},
+    {time:"10:30 AM",task:"Collagen plus Vitamin C immediately. Protein shake within 20 min post-session",icon:"💊",iconColor:"#EC4899",iconBg:"#EC489920"},
+    {time:"12:00 PM",task:"High-protein lunch: 50g protein today. Salmon plus rice plus avocado. Zinc 15mg",icon:"🥗",iconColor:"#22CC00",iconBg:"#22CC0020"},
+    {time:"2:00 PM",task:"Ice bath or contrast therapy post heavy session. 10 min at 55F",icon:"🧊",iconColor:"#38BDF8",iconBg:"#38BDF820"},
+    {time:"5:00 PM",task:"Review progress: compare this week exercises to last week. Are you stronger?",icon:"📊",iconColor:"#A855F7",iconBg:"#A855F720"},
+    {time:"7:00 PM",task:"Dinner: lean protein plus complex carbs plus vegetables. Magnesium 400mg",icon:"🍽️",iconColor:"#39FF14",iconBg:"#39FF1420"},
+    {time:"9:00 PM",task:"Call or text someone on your support team. Recovery is social. Then sleep",icon:"😴",iconColor:"#6366F1",iconBg:"#6366F120"},
+  ],
+  [
+    {time:"6:30 AM",task:"Active recovery day: 500ml water plus light 10-min walk outside if possible",icon:"💧",iconColor:"#38BDF8",iconBg:"#38BDF820"},
+    {time:"7:00 AM",task:"Gentle stretch 20 min full body. Hold each stretch 30 to 45 seconds. Breathe deeply",icon:"🌅",iconColor:"#F59E0B",iconBg:"#F59E0B20"},
+    {time:"8:00 AM",task:"Breakfast plus D3 plus Omega-3. Rest day: still hit protein target with slight calorie reduction",icon:"💊",iconColor:"#6366F1",iconBg:"#6366F120"},
+    {time:"10:00 AM",task:"Weekly check-in: measure range of motion, note pain levels, log everything in journal",icon:"📋",iconColor:"#39FF14",iconBg:"#39FF1420"},
+    {time:"10:30 AM",task:"Collagen plus Vitamin C even on rest days as tendon building is a continuous process",icon:"💊",iconColor:"#EC4899",iconBg:"#EC489920"},
+    {time:"12:00 PM",task:"Balanced lunch: protein plus fat plus fiber. Zinc 15mg",icon:"🥗",iconColor:"#22CC00",iconBg:"#22CC0020"},
+    {time:"2:00 PM",task:"Mental recovery: watch film of your sport, stay connected to the game mentally",icon:"🎬",iconColor:"#38BDF8",iconBg:"#38BDF820"},
+    {time:"4:00 PM",task:"Light pool session 15 min OR gentle yoga. Active recovery not passive rest",icon:"🏊",iconColor:"#A855F7",iconBg:"#A855F720"},
+    {time:"7:00 PM",task:"Dinner: meal prep for the week ahead. Magnesium 400mg. Prioritize sleep tonight",icon:"🍽️",iconColor:"#39FF14",iconBg:"#39FF1420"},
+    {time:"9:00 PM",task:"Plan next week rehab goals. Write them down. Sleep 9 plus hours — biggest recovery day",icon:"😴",iconColor:"#6366F1",iconBg:"#6366F120"},
+  ],
+];
+
+export const DAILY_CONTENT = [
+  {type:"verse",quote:"I can do all things through Christ who strengthens me.",text:"Philippians 4:13"},
+  {type:"verse",quote:"Be strong and courageous. Do not be afraid.",text:"Joshua 1:9"},
+  {type:"motivation",quote:"Champions are made in the moments they want to quit.",text:"Recovery Wisdom"},
+  {type:"verse",quote:"Those who hope in the Lord will renew their strength.",text:"Isaiah 40:31"},
+  {type:"motivation",quote:"Every day you show up is a day closer to comeback.",text:"Recovery Wisdom"},
+  {type:"verse",quote:"For I know the plans I have for you — plans to prosper you.",text:"Jeremiah 29:11"},
+  {type:"motivation",quote:"The comeback is always stronger than the setback.",text:"Recovery Wisdom"},
+  {type:"verse",quote:"He gives strength to the weary, power to the faint.",text:"Isaiah 40:29"},
+  {type:"motivation",quote:"Discipline is doing it when you do not feel like it.",text:"Recovery Wisdom"},
+  {type:"verse",quote:"Do not grow weary in doing good — at the proper time you will reap.",text:"Galatians 6:9"},
+  {type:"motivation",quote:"Your only competition is who you were yesterday.",text:"Recovery Wisdom"},
+  {type:"verse",quote:"Consider it joy when you face trials — testing produces perseverance.",text:"James 1:2-3"},
+  {type:"motivation",quote:"Small progress is still progress. Keep going.",text:"Recovery Wisdom"},
+  {type:"verse",quote:"Well done, good and faithful servant.",text:"Matthew 25:23"},
+];
+
+export const MILESTONES = [
+  {day:1,badge:"🌱",title:"Day One",reward:"You started. That is the hardest step.",verse:"Be strong and courageous — Joshua 1:9"},
+  {day:3,badge:"🔥",title:"3 Days",reward:"Resilience Badge unlocked.",verse:"I can do all things through Christ — Phil 4:13"},
+  {day:7,badge:"⚡",title:"One Week",reward:"Streak Shield earned.",verse:"Endurance produces character — Romans 5:4"},
+  {day:14,badge:"💪",title:"Two Weeks",reward:"Warrior Badge plus nutrition guide unlocked.",verse:"Press on toward the goal — Philippians 3:14"},
+  {day:21,badge:"🏅",title:"21 Days",reward:"Habit formed. Custom protocol unlocked.",verse:"Do not grow weary — Galatians 6:9"},
+  {day:30,badge:"🏆",title:"30 Days",reward:"Champion Badge earned.",verse:"They will soar on wings like eagles — Isaiah 40:31"},
+  {day:60,badge:"🦅",title:"60 Days",reward:"Eagle Badge plus full supplement guide.",verse:"He gives strength to the weary — Isaiah 40:29"},
+  {day:90,badge:"👑",title:"90 Days",reward:"Legend Trophy plus return-to-sport checklist.",verse:"Well done good and faithful servant — Matthew 25:23"},
+];
+
+export const SKIN_TONES = ["#FDDBB4","#F5C89A","#D4956A","#A0614A","#6B3A2A","#3B1F1A"];
+export const HAIR_COLORS = ["#1a1a1a","#4a2c0a","#8B4513","#D2691E","#FFD700","#E6B0AA","#AED6F1","#A9A9A9","#FFFFFF","#39FF14","#FF3B3B","#A855F7"];
+export const HAIR_STYLES = ["Short","Curly","Long","Braids","Bun","Fade","Natural","Ponytail","Mohawk","Locs"];
+export const BODY_TYPES  = ["Slim","Athletic","Average","Muscular","Curvy","Stocky"];
+export const GENDERS     = ["Male","Female","Non-binary"];
+
+export const AVATAR_QUOTES: Record<string,string[]> = {
+  streak:[
+    "You showed up again. Your tissue is literally rebuilding right now because of YOUR consistency.",
+    "Day after day. That consistency is exactly what separates good recoveries from great ones.",
+    "Your streak tells me everything — you are a competitor even in rehab.",
+    "Keep this streak alive. The athletes who make it back? They show up daily.",
+    "I have trained champions. The ones who show up every day always come back stronger.",
+  ],
+  goal:[
+    "PERFECT DAY. Recovery science shows consistent task completion accelerates healing by 30%.",
+    "All tasks done today. As your trainer I am proud — this is elite-level discipline.",
+    "Full completion! Protein timing, ice protocol, everything dialed in. You are doing this RIGHT.",
+    "That is how champions train. Every. Single. Task. Well done athlete.",
+    "Goal complete! Your body felt that. Keep stacking these days.",
+  ],
+  miss:[
+    "Hey, missed tasks today. That is okay — but let us talk about what got in the way so we fix it tomorrow.",
+    "Recovery is not linear. But missing tasks slows the timeline. Back at it tomorrow.",
+    "I need you to show up tomorrow. Your injury is counting on your consistency.",
+    "One miss does not define your recovery. But patterns do. See you tomorrow.",
+  ],
+  morning:[
+    "Good morning athlete. Today is another rep toward your comeback. Let us go.",
+    "Rise up. Your comeback starts with today's protocol. No excuses.",
+    "New day. New chance to heal. What we do today matters for who you are in 6 weeks.",
+    "Morning! Remember why you started. That reason is bigger than today's discomfort.",
+  ],
+};
+
+export interface Post {
+  id: string;
+  author: string;
+  msg: string;
+  likes: number;
+  likedByMe: boolean;
+  timestamp: string;
+  replies: {author:string; msg:string; timestamp:string}[];
+}
+
+export function seedPosts(sportId: string): Post[] {
+  const now = new Date();
+  const ago = (h:number) => new Date(now.getTime() - h*3600000).toISOString();
+
+  const seeds: Record<string,Post[]> = {
+    basketball:[
+      {id:"b1",author:"Marcus T.",msg:"Day 47 post-ACL. Hit 90 degrees ROM today. Nordic curls protocol in this app is absolutely legit. Don't sleep on the eccentric loading.",likes:24,likedByMe:false,timestamp:ago(2),replies:[
+        {author:"Darius K.",msg:"Keep pushing bro! Day 82 here — you will be jumping again soon. Week 6 was my turning point.",timestamp:ago(1)},
+        {author:"Tina M.",msg:"How long until you could walk without a limp? I'm on day 30 and still struggling.",timestamp:ago(0.5)},
+        {author:"Marcus T.",msg:"@Tina I walked normally around day 35. Just trust the process and do the quad sets every single day.",timestamp:ago(0.3)},
+      ]},
+      {id:"b2",author:"DeShawn W.",msg:"134 days out. Just dropped 40pts in first game back. I was sitting here reading this app every single day. Your comeback is coming. Trust the science and trust God.",likes:201,likedByMe:false,timestamp:ago(6),replies:[
+        {author:"Marcus T.",msg:"This just made my whole week. Thank you for posting this.",timestamp:ago(5)},
+        {author:"Coach Rivera",msg:"This is EXACTLY why we do the work. Screenshot this everyone.",timestamp:ago(4)},
+        {author:"JayBall23",msg:"Crying reading this. I'm day 12 and feeling hopeless. This helped.",timestamp:ago(3)},
+        {author:"DeShawn W.",msg:"@JayBall day 12 is the hardest. It gets better at week 4. I promise you.",timestamp:ago(2)},
+      ]},
+      {id:"b3",author:"Coach Rivera",msg:"Reminder for everyone: recovery pace is not weakness. It IS the strategy. The athletes who rush back are the ones who re-tear. Be patient. Be disciplined. Be back STRONGER.",likes:89,likedByMe:false,timestamp:ago(12),replies:[
+        {author:"KD_Recover",msg:"Needed to hear this today. Was about to push too hard.",timestamp:ago(11)},
+        {author:"Tina M.",msg:"Saving this post forever.",timestamp:ago(10)},
+      ]},
+      {id:"b4",author:"KD_Recover",msg:"Week 8 post meniscus repair. Hopped on the bike today for the first time. Literally cried. Small wins matter so much on this journey.",likes:67,likedByMe:false,timestamp:ago(18),replies:[
+        {author:"Marcus T.",msg:"The bike tears hit different. You are doing amazing.",timestamp:ago(17)},
+        {author:"DeShawn W.",msg:"First bike session is a milestone. Mark it down.",timestamp:ago(16)},
+      ]},
+      {id:"b5",author:"Aaliyah R.",msg:"Anyone dealing with mental blocks after ACL? My knee is healed but my brain won't let me go full speed. PT says I'm physically cleared but I freeze up on cuts.",likes:45,likedByMe:false,timestamp:ago(24),replies:[
+        {author:"DeShawn W.",msg:"This is the MOST common thing nobody talks about. It took me 3 extra weeks to trust my knee mentally. Sports psych helped me more than anything.",timestamp:ago(23)},
+        {author:"Marcus T.",msg:"Graduated return is the answer. Go 50%, then 60%, then 70%. Let your brain catch up to your body.",timestamp:ago(22)},
+        {author:"Coach Rivera",msg:"Fear of re-injury is a documented phenomenon. Visualize successful cuts. Program the new pattern.",timestamp:ago(21)},
+        {author:"Aaliyah R.",msg:"Thank you all so much. I feel less alone knowing this is normal.",timestamp:ago(20)},
+      ]},
+    ],
+    football:[
+      {id:"f1",author:"Jake M.",msg:"Cleared for contact today. 82 days from torn Achilles. Trust the protocol. Every single task in this app matters — I did all of them.",likes:67,likedByMe:false,timestamp:ago(3),replies:[
+        {author:"Kyle R.",msg:"How was your mental game during the recovery?",timestamp:ago(2)},
+        {author:"Jake M.",msg:"Honestly the mental was harder than physical. Week 3 was brutal. Just keep showing up.",timestamp:ago(1.5)},
+        {author:"BigLineman55",msg:"This gives me so much hope. Day 20 here on hamstring.",timestamp:ago(1)},
+      ]},
+      {id:"f2",author:"Tyler B.",msg:"Post-surgery day 14. The daily schedule in this app is keeping me sane. Having something structured to follow every day is everything when you feel helpless.",likes:31,likedByMe:false,timestamp:ago(8),replies:[
+        {author:"Jake M.",msg:"That structure saved me too. Stick with it every single day.",timestamp:ago(7)},
+        {author:"Lamar_DL",msg:"What surgery did you have?",timestamp:ago(6)},
+        {author:"Tyler B.",msg:"ACL reconstruction. Patellar tendon graft.",timestamp:ago(5)},
+      ]},
+      {id:"f3",author:"BigLineman55",msg:"Hamstring strain grade 2. Anyone have experience with the Nordic curl protocol? It looks intense.",likes:18,likedByMe:false,timestamp:ago(15),replies:[
+        {author:"Jake M.",msg:"Start with just the eccentric lowering phase. No full Nordic yet until week 4. The research on this is solid.",timestamp:ago(14)},
+        {author:"Coach Rivera",msg:"Askling protocol is gold standard for hamstrings. Follow it exactly. Do NOT skip the eccentric work.",timestamp:ago(13)},
+        {author:"BigLineman55",msg:"Appreciate the guidance. Starting tomorrow.",timestamp:ago(12)},
+      ]},
+    ],
+    soccer:[
+      {id:"s1",author:"Priya R.",msg:"Week 3 hamstring strain. Pool running is literally saving my cardio base. If you are injured and not pool running you are missing out.",likes:18,likedByMe:false,timestamp:ago(4),replies:[
+        {author:"Ana S.",msg:"Pool running changed everything for me. 3 weeks of it during my hamstring. Worth every boring lap.",timestamp:ago(3)},
+        {author:"Mia L.",msg:"How long did you pool run each session?",timestamp:ago(2)},
+        {author:"Priya R.",msg:"20–25 min. Heart rate monitor helps. Try to stay at 70% max HR.",timestamp:ago(1)},
+      ]},
+      {id:"s2",author:"Jordan K.",msg:"First training session back today. 10 months from ACL reconstruction. Cried on the pitch. Couldn't help it. If you are early in your recovery just know it is possible. This community and this app got me through.",likes:145,likedByMe:false,timestamp:ago(10),replies:[
+        {author:"Priya R.",msg:"Tears of joy. Absolutely deserved. Congratulations.",timestamp:ago(9)},
+        {author:"Mia L.",msg:"This gives me so much hope. I am only on week 2 and struggling.",timestamp:ago(8)},
+        {author:"Ana S.",msg:"Saving this post. 10 months feels forever but you prove it is worth it.",timestamp:ago(7)},
+        {author:"Jordan K.",msg:"@Mia week 2 is the hardest. The protocol works. Just do the tasks every day.",timestamp:ago(6)},
+      ]},
+      {id:"s3",author:"Mia L.",msg:"Day 45. Can finally do a full squat without pain. Feels like a miracle after thinking this would never happen.",likes:52,likedByMe:false,timestamp:ago(20),replies:[
+        {author:"Jordan K.",msg:"This is exactly the trajectory. Day 45 full squat means day 90 you are running.",timestamp:ago(19)},
+        {author:"Priya R.",msg:"Screenshot this progress. You will want to look back at it.",timestamp:ago(18)},
+      ]},
+    ],
+  };
+
+  return seeds[sportId] || [
+    {id:"g1",author:"Recovery Community",msg:`Welcome to the ${sportId} recovery squad! Drop your injury and how many days in you are below. Let us support each other.`,likes:0,likedByMe:false,timestamp:new Date().toISOString(),replies:[]},
+  ];
+}
+
+export function calcMacros(height:string,weight:string,gender:string,goal:string){
+  const h=parseFloat(height); const w=parseFloat(weight);
+  if(!h||!w) return null;
+  const bmr=gender==="female"?(10*w)+(6.25*h)-(5*25)-161:(10*w)+(6.25*h)-(5*25)+5;
+  const tdee=bmr*1.375;
+  let calories=tdee; let proteinG=w*2.0;
+  let fatG=(calories*0.25)/9;
+  let carbG=(calories-(proteinG*4)-(fatG*9))/4;
+  if(goal==="fast"){calories=tdee+100;proteinG=w*2.2;}
+  if(goal==="fitness"){proteinG=w*1.8;}
+  if(goal==="pain"){calories=tdee-100;proteinG=w*1.6;fatG=(calories*0.30)/9;carbG=(calories-(proteinG*4)-(fatG*9))/4;}
+  return {calories:Math.round(calories),protein:Math.round(proteinG),carbs:Math.round(Math.max(carbG,50)),fat:Math.round(fatG)};
+}
+
+export function formatTime(iso: string): string {
+  const d = new Date(iso);
+  const now = new Date();
+  const diff = Math.floor((now.getTime() - d.getTime()) / 1000);
+  if (diff < 60) return "just now";
+  if (diff < 3600) return `${Math.floor(diff/60)}m ago`;
+  if (diff < 86400) return `${Math.floor(diff/3600)}h ago`;
+  return `${Math.floor(diff/86400)}d ago`;
+}import { Post } from "./data";
+
+export const STORAGE_KEY = "comeback_v3";
+
+export interface Avatar {
+  gender: "male"|"female"|"nonbinary";
+  skinTone: string;
+  hairColor: string;
+  hairStyle: string;
+  bodyType: string;
+}
+
+export interface BodyProfile {
+  height: string;
+  weight: string;
+  gender: string;
+  goal: string;
+}
+
+export interface SavedState {
+  sportId: string;
+  injuryId: string;
+  severityId: string;
+  goalId: string;
+  startDate: string;
+  lastActiveDate: string;
+  streak: number;
+  streakAlive: boolean;
+  completedTasks: Record<string, boolean[]>;
+  suppChecked: Record<string, boolean[]>;
+  unlockedMilestones: number[];
+  plan: "free"|"pro"|"elite";
+  trialStartDate: string;
+  avatar: Avatar|null;
+  bodyProfile: BodyProfile|null;
+  posts: Record<string, Post[]>;
+}
+
+export function todayStr(): string {
+  return new Date().toISOString().slice(0,10);
+}
+
+export function daysBetween(a: string, b: string): number {
+  return Math.floor((new Date(b).getTime() - new Date(a).getTime()) / 86400000);
+}
+
+export function loadState(): SavedState|null {
+  try {
+    const r = localStorage.getItem(STORAGE_KEY);
+    return r ? JSON.parse(r) : null;
+  } catch { return null; }
+}
+
+export function saveState(s: SavedState): void {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(s)); } catch {}
+}
+
+export function clearState(): void {
+  try { localStorage.removeItem(STORAGE_KEY); } catch {}
+}
