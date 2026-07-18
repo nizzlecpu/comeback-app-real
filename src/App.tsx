@@ -1340,7 +1340,7 @@ function BodyProfileForm({ onSave }: { onSave: (p: BodyProfile) => void }) {
           <div key={key}>
             <label style={{ fontSize: 11, fontWeight: 700, color: T.textMuted, display: "block", marginBottom: 4 }}>{label}</label>
             <input type="number" placeholder={ph}
-              value={(form as Record<string, string>)[key]}
+              value={(form as unknown as Record<string, string>)[key]}
               onChange={e => setForm(f => ({ ...f, [key]: e.target.value }))}
               style={{ width: "100%", padding: "10px", borderRadius: 10, border: `1.5px solid ${T.border}`, background: T.card, color: T.textPrimary, fontSize: 14, fontFamily: "inherit", boxSizing: "border-box", outline: "none" }} />
           </div>
