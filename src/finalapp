@@ -1510,99 +1510,18 @@ function GoalSelect({ onNext }: { onNext: (g: typeof GOALS_LIST[0]) => void }) {
 
 // ── PLAN SELECT — GATED (no bypass) ──────────────────────────────────────────
 function PlanSelect({ onSelectPlan }: { onSelectPlan: (plan: "free" | "pro" | "elite") => void; onFreeConfirm: () => void }) {
-  const [awaitingPayment, setAwaitingPayment] = useState<"pro" | "elite" | null>(null);
-  const [verifyCode, setVerifyCode]           = useState("");
-  const [codeError, setCodeError]             = useState("");
-  const [secondsLeft, setSecondsLeft]         = useState(45);
-  const [canVerify, setCanVerify]             = useState(false);
-
-  useEffect(() => {
-    if (!awaitingPayment) { setSecondsLeft(45); setCanVerify(false); setVerifyCode(""); setCodeError(""); return; }
-    const t = setInterval(() => {
-      setSecondsLeft(s => { if (s <= 1) { clearInterval(t); setCanVerify(true); return 0; } return s - 1; });
-    }, 1000);
-    return () => clearInterval(t);
-  }, [awaitingPayment]);
-
-  const handleVerify = () => {
-    const trimmed = verifyCode.trim();
-    if (trimmed.length < 6) { setCodeError("Enter the Order ID from your Stripe receipt email."); return; }
-    if (!/^[a-zA-Z0-9_\-]{6,32}$/.test(trimmed)) { setCodeError("Invalid format. Copy it exactly from your Stripe receipt."); return; }
-    setCodeError("");
-    onSelectPlan(awaitingPayment!);
-  };
-
   const freeHave    = ["Daily recovery protocol","10-task daily checklist","Streak tracking","Basic squad access"];
   const freeMiss    = ["Personalised nutrition + macros","Supplement schedule","AI Animal coach","Video library","Advanced analytics","1-on-1 PT consults"];
   const proHave     = ["Everything in Free","Personalised macros + nutrition","Supplement timing schedule","Video exercise library","Progress analytics","Priority email support"];
   const proMiss     = ["AI Animal coach that grows with you","1-on-1 PT video consults","Custom meal plans","Custom supplement stack"];
   const eliteHave   = ["Everything in Pro","🐣 Baby animal coach on day 1","Animal grows baby→toddler→teen→adult","Name your animal companion","Animated reactions to your progress","Daily pep talks + streak celebrations","1-on-1 PT video consults","Custom meal + supplement plans","24/7 priority support"];
 
-  if (awaitingPayment) {
-    return (
-      <div style={{ minHeight:"100%", background:T.bg, display:"flex", flexDirection:"column", padding:24 }}>
-        <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:28 }}>
-          <button onClick={() => setAwaitingPayment(null)} style={{ background:"none", border:"none", cursor:"pointer", color:T.textSecondary, padding:4 }}>
-            <ArrowLeft size={20}/>
-          </button>
-          <Logo size={22}/>
-        </div>
-
-        <div style={{ textAlign:"center", marginBottom:24 }}>
-          <div style={{ fontSize:52, marginBottom:10 }}>🔐</div>
-          <h2 style={{ fontWeight:900, fontSize:22, color:T.textPrimary, marginBottom:8 }}>Verify Your Payment</h2>
-          <p style={{ fontSize:14, color:T.textSecondary, lineHeight:1.6 }}>
-            Complete payment on Stripe then enter your <strong style={{color:T.neon}}>Order ID</strong> from the receipt email to activate your {awaitingPayment === "pro" ? "Pro ⚡" : "Elite 👑"} plan.
-          </p>
-        </div>
-
-        <div style={{ background:T.surface, borderRadius:16, padding:16, marginBottom:12, border:`1px solid ${T.border}` }}>
-          <div style={{ fontWeight:800, fontSize:11, color:T.neon, marginBottom:8, letterSpacing:"0.8px" }}>STEP 1 — COMPLETE PAYMENT</div>
-          <p style={{ fontSize:13, color:T.textSecondary, marginBottom:12, lineHeight:1.5 }}>Tap below to open Stripe checkout in a new tab and complete your payment.</p>
-          <button onClick={() => window.open(awaitingPayment === "pro" ? PLAN_PRO_URL : PLAN_ELITE_URL, "_blank")}
-            style={{ width:"100%", padding:"12px", borderRadius:12, background: awaitingPayment==="pro"?T.teal:T.neon, color: awaitingPayment==="pro"?"white":T.bg, fontWeight:800, fontSize:14, border:"none", cursor:"pointer", boxShadow: awaitingPayment==="pro"?`0 0 16px ${T.teal}40`:shadow.neon }}>
-            Open Stripe Checkout →
-          </button>
-        </div>
-
-        <div style={{ background:T.surface, borderRadius:16, padding:16, marginBottom:20, border:`1px solid ${T.border}` }}>
-          <div style={{ fontWeight:800, fontSize:11, color:T.neon, marginBottom:8, letterSpacing:"0.8px" }}>STEP 2 — ENTER RECEIPT CODE</div>
-          <p style={{ fontSize:12, color:T.textSecondary, marginBottom:10, lineHeight:1.5 }}>
-            After paying, Stripe emails you a receipt. Find the <strong style={{color:T.textPrimary}}>Order or Charge ID</strong> — it starts with <span style={{fontFamily:"monospace",color:T.neon,fontSize:11}}>ch_</span> or <span style={{fontFamily:"monospace",color:T.neon,fontSize:11}}>pi_</span> — and paste it below.
-          </p>
-          <input value={verifyCode} onChange={e => { setVerifyCode(e.target.value); setCodeError(""); }}
-            placeholder="e.g. ch_3AbcDef12345..."
-            style={{ width:"100%", padding:"12px", borderRadius:10, border:`1.5px solid ${codeError?T.red:verifyCode.length>5?T.neon:T.border}`, background:T.card, color:T.textPrimary, fontSize:13, fontFamily:"monospace", outline:"none", boxSizing:"border-box", marginBottom:8 }}/>
-          {codeError && <div style={{ fontSize:11, color:T.red, marginBottom:10 }}>{codeError}</div>}
-
-          {!canVerify ? (
-            <div style={{ background:T.card, borderRadius:12, padding:"14px", textAlign:"center", border:`1px solid ${T.border}` }}>
-              <div style={{ fontSize:12, color:T.textMuted, marginBottom:4 }}>Activate button unlocks in</div>
-              <div style={{ fontWeight:900, fontSize:32, color:T.neon, textShadow:shadow.neon, lineHeight:1 }}>{secondsLeft}s</div>
-              <div style={{ fontSize:11, color:T.textMuted, marginTop:4 }}>Complete your payment in the Stripe tab while you wait</div>
-            </div>
-          ) : (
-            <button onClick={handleVerify}
-              style={{ width:"100%", padding:"14px", borderRadius:12, background:verifyCode.length>=6?T.neon:T.border, color:verifyCode.length>=6?T.bg:T.textMuted, fontWeight:900, fontSize:14, border:"none", cursor:verifyCode.length>=6?"pointer":"not-allowed", boxShadow:verifyCode.length>=6?shadow.neon:"none" }}>
-              Verify & Activate {awaitingPayment==="pro"?"Pro ⚡":"Elite 👑"}
-            </button>
-          )}
-        </div>
-
-        <p style={{ fontSize:11, color:T.textMuted, textAlign:"center" }}>
-          Can't find the code? Check your spam folder or email{" "}
-          <span style={{color:T.neon}}>support@comebacktrainer.com</span>
-        </p>
-      </div>
-    );
-  }
-
   return (
     <div style={{ minHeight:"100%", display:"flex", flexDirection:"column", background:T.bg }}>
       <div style={{ padding:"20px 20px 0", position:"sticky", top:0, background:T.bg, zIndex:10 }}>
         <Logo size={22}/><StepBar total={5} current={5}/>
         <h2 style={{ fontWeight:900, fontSize:22, color:T.textPrimary, marginBottom:4 }}>Choose your plan</h2>
-        <p style={{ fontSize:13, color:T.textSecondary, marginBottom:16 }}>Select a plan to start your recovery journey.</p>
+        <p style={{ fontSize:13, color:T.textSecondary, marginBottom:16 }}>Start free. Upgrade anytime.</p>
       </div>
       <div style={{ flex:1, overflowY:"auto", padding:"0 20px 32px" }}>
 
@@ -1610,14 +1529,13 @@ function PlanSelect({ onSelectPlan }: { onSelectPlan: (plan: "free" | "pro" | "e
         <div style={{ background:T.card, borderRadius:18, padding:"18px 16px", border:`1px solid ${T.border}`, marginBottom:12 }}>
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
             <div style={{ display:"flex", alignItems:"center", gap:8 }}><span style={{fontSize:22}}>🌱</span><span style={{fontWeight:800,fontSize:16,color:T.textPrimary}}>Free</span></div>
-            <div style={{textAlign:"right"}}><span style={{fontWeight:900,fontSize:18,color:T.textPrimary}}>$0</span><div style={{fontSize:9,color:T.textMuted}}>24hr trial</div></div>
+            <div style={{textAlign:"right"}}><span style={{fontWeight:900,fontSize:18,color:T.textPrimary}}>$0</span><div style={{fontSize:9,color:T.textMuted}}>always free</div></div>
           </div>
           {freeHave.map((f,j)=><div key={j} style={{display:"flex",gap:8,marginBottom:5,alignItems:"center"}}><Check size={13} color={T.neon} strokeWidth={3}/><span style={{fontSize:12,color:T.textSecondary}}>{f}</span></div>)}
           {freeMiss.map((f,j)=><div key={j} style={{display:"flex",gap:8,marginBottom:5,alignItems:"center"}}><X size={13} color={T.red} strokeWidth={3}/><span style={{fontSize:12,color:T.textMuted,textDecoration:"line-through"}}>{f}</span></div>)}
           <button onClick={()=>onSelectPlan("free")} style={{width:"100%",marginTop:14,padding:"12px",borderRadius:12,background:"transparent",color:T.textSecondary,fontWeight:700,fontSize:13,border:`1.5px solid ${T.border}`,cursor:"pointer"}}>
-            Start Free Trial (24hrs only)
+            Start Free →
           </button>
-          <p style={{fontSize:10,color:T.textMuted,textAlign:"center",marginTop:6}}>After 24hrs you need a paid plan to continue</p>
         </div>
 
         {/* PRO */}
@@ -1629,7 +1547,7 @@ function PlanSelect({ onSelectPlan }: { onSelectPlan: (plan: "free" | "pro" | "e
           </div>
           {proHave.map((f,j)=><div key={j} style={{display:"flex",gap:8,marginBottom:5,alignItems:"center"}}><Check size={13} color={T.teal} strokeWidth={3}/><span style={{fontSize:12,color:T.textSecondary}}>{f}</span></div>)}
           {proMiss.map((f,j)=><div key={j} style={{display:"flex",gap:8,marginBottom:5,alignItems:"center"}}><X size={13} color={T.red} strokeWidth={3}/><span style={{fontSize:12,color:T.textMuted,textDecoration:"line-through"}}>{f}</span></div>)}
-          <button onClick={()=>{window.open(PLAN_PRO_URL,"_blank");setAwaitingPayment("pro");}}
+          <button onClick={()=>{window.open(PLAN_PRO_URL,"_blank");onSelectPlan("pro");}}
             style={{width:"100%",marginTop:14,padding:"12px",borderRadius:12,background:T.teal,color:"white",fontWeight:700,fontSize:13,border:"none",cursor:"pointer"}}>
             Get Pro — $9.99/mo →
           </button>
@@ -1644,7 +1562,7 @@ function PlanSelect({ onSelectPlan }: { onSelectPlan: (plan: "free" | "pro" | "e
             <div style={{textAlign:"right"}}><span style={{fontWeight:900,fontSize:18,color:T.neon,textShadow:shadow.neon}}>$28.99/mo</span><div style={{fontSize:9,color:T.textMuted}}>billed monthly</div></div>
           </div>
           {eliteHave.map((f,j)=><div key={j} style={{display:"flex",gap:8,marginBottom:5,alignItems:"center"}}><Check size={13} color={T.neon} strokeWidth={3}/><span style={{fontSize:12,color:"rgba(255,255,255,0.85)"}}>{f}</span></div>)}
-          <button onClick={()=>{window.open(PLAN_ELITE_URL,"_blank");setAwaitingPayment("elite");}}
+          <button onClick={()=>{window.open(PLAN_ELITE_URL,"_blank");onSelectPlan("elite");}}
             style={{width:"100%",marginTop:14,padding:"13px",borderRadius:12,background:T.neon,color:T.bg,fontWeight:900,fontSize:13,border:"none",cursor:"pointer",boxShadow:shadow.neon}}>
             Get Elite + Animal Coach 🐣 — $28.99/mo →
           </button>
@@ -1652,7 +1570,7 @@ function PlanSelect({ onSelectPlan }: { onSelectPlan: (plan: "free" | "pro" | "e
         </div>
 
         <button onClick={()=>onSelectPlan("free")} style={{width:"100%",padding:"13px",borderRadius:14,background:"transparent",color:T.textSecondary,fontWeight:700,fontSize:14,border:`1.5px solid ${T.border}`,cursor:"pointer"}}>
-          Start free 24hr trial instead
+          Skip — continue free
         </button>
       </div>
     </div>
@@ -1790,8 +1708,8 @@ function AppDashboard({
     if (s) { s.posts = s.posts || {}; s.posts[saved.sportId] = [post, ...(s.posts[saved.sportId] || [])]; saveState(s); }
   };
 
-  const trialDays = daysBetween(saved.trialStartDate || saved.startDate, todayStr());
-  const trialExpired = saved.plan === "free" && trialDays >= 1;
+  const trialDays = 0; // Ad-supported — no trial expiry
+  const trialExpired = false;
 
   const handleSaveAvatar = (av: Avatar, name: string) => {
     setAvatarState(av);
@@ -2360,3 +2278,5 @@ export default function App() {
     </div>
   );
 }
+
+
