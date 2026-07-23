@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useCallback, ReactNode } from "react";
-import { Check, ChevronRight, Trophy, Users, Home, BookOpen, Dumbbell, RotateCcw, Heart, MessageCircle, Send } from "lucide-react";
+import { Check, ChevronRight, Trophy, Users, Home, BookOpen, Dumbbell, RotateCcw, Heart, MessageCircle, Send, ArrowLeft } from "lucide-react";
 
 // ============================================================================
-// COMEBACK — FREE (Ad-Supported Edition)
-// Single-tier free app. No paywalls, no plan picker. Ad-supported via banner
-// + interstitial placements. Full protocol, supplements, diet guide, streaks,
-// squad, and milestone badges — everything except personalised macros and the
-// premium Badge Companion (those live in the Pro app).
+// COMEBACK — PRO (Full Unlocked Edition)
+// Single standalone paid app. No ads, no plan picker, no paywalls — every
+// feature is unlocked from the first session: personalised macros, the full
+// supplement + nutrition system, squad, milestones, and the premium
+// Animated Trophy/Badge Companion that levels up baby → bronze → silver →
+// gold → diamond as the user's streak builds.
 // ============================================================================
 
 // ── THEME ─────────────────────────────────────────────────────────────────────
@@ -35,8 +36,18 @@ const shadow = {
 };
 
 // ── STORAGE ───────────────────────────────────────────────────────────────────
-const STORAGE_KEY = "comeback_free_v1";
+const STORAGE_KEY = "comeback_pro_v1";
 
+interface BodyProfile {
+  height: string;
+  weight: string;
+  gender: string;
+  goal: string;
+}
+interface Badge {
+  auraColor: string;
+  nickname: string;
+}
 interface SavedState {
   sportId: string;
   injuryId: string;
@@ -48,10 +59,10 @@ interface SavedState {
   streakAlive: boolean;
   completedTasks: Record<string, boolean[]>;
   suppChecked: Record<string, boolean[]>;
+  bodyProfile: BodyProfile | null;
+  badge: Badge | null;
   posts: Record<string, Post[]>;
-  lastInterstitialDate: string;
 }
-
 function todayStr(): string {
   return new Date().toISOString().slice(0, 10);
 }
@@ -274,16 +285,6 @@ const MILESTONES = [
   {day:90,badge:"👑",title:"90 Days",reward:"Legend Trophy plus return-to-sport checklist.",verse:"Well done good and faithful servant — Matthew 25:23"},
 ];
 
-// ── FAKE AD INVENTORY ─────────────────────────────────────────────────────────
-const AD_INVENTORY = [
-  {emoji:"🧊",brand:"CryoFlex",headline:"Ice therapy that actually stays cold for 6 hours.",cta:"Shop Now",color:"#38BDF8"},
-  {emoji:"💊",brand:"RecoverPro Omega-3",headline:"The supplement athletes stock up on before every season.",cta:"Learn More",color:"#22CC00"},
-  {emoji:"🏋️",brand:"BandUp Resistance Kit",headline:"Rehab-grade resistance bands, 5 resistance levels.",cta:"Get 20% Off",color:"#F59E0B"},
-  {emoji:"⌚",brand:"SleepTrack Ring",headline:"Track your recovery sleep down to the minute.",cta:"Try Free",color:"#A855F7"},
-  {emoji:"🥤",brand:"HydrateIQ Electrolytes",headline:"Zero sugar. Built for daily rehab sessions.",cta:"Shop Now",color:"#EC4899"},
-  {emoji:"🩹",brand:"FlexTape Kinesiology",headline:"The tape pros wear on the sideline.",cta:"Shop Now",color:"#FF6B00"},
-];
-
 interface Post {
   id: string;
   author: string;
@@ -320,6 +321,19 @@ function seedPosts(sportId: string): Post[] {
   return all[sportId] || [
     {id:"g1",author:"Recovery Community",msg:`Welcome to the ${sportId} recovery squad! Drop your injury and how many days in you are. Let us support each other.`,likes:0,likedByMe:false,timestamp:new Date().toISOString(),replies:[]},
   ];
+}
+function calcMacros(height:string, weight:string, gender:string, goal:string) {
+  const h = parseFloat(height); const w = parseFloat(weight);
+  if (!h || !w) return null;
+  const bmr = gender === "female" ? (10*w)+(6.25*h)-(5*25)-161 : (10*w)+(6.25*h)-(5*25)+5;
+  const tdee = bmr * 1.375;
+  let calories = tdee; let proteinG = w*2.0;
+  let fatG = (calories*0.25)/9;
+  let carbG = (calories-(proteinG*4)-(fatG*9))/4;
+  if (goal === "fast") { calories = tdee+100; proteinG = w*2.2; }
+  if (goal === "fitness") { proteinG = w*1.8; }
+  if (goal === "pain") { calories = tdee-100; proteinG = w*1.6; fatG = (calories*0.30)/9; carbG = (calories-(proteinG*4)-(fatG*9))/4; }
+  return { calories: Math.round(calories), protein: Math.round(proteinG), carbs: Math.round(Math.max(carbG,50)), fat: Math.round(fatG) };
 }
 function formatTime(iso: string): string {
   const d = new Date(iso);
@@ -389,7 +403,7 @@ function Logo({ size = 28 }: { size?: number }) {
           Comeback
         </div>
         <div style={{ fontWeight: 600, fontSize: size * 0.38, color: T.neon, lineHeight: 1, letterSpacing: "1.5px", textTransform: "uppercase", marginTop: 1 }}>
-          Sports Recovery
+          Sports Recovery Pro
         </div>
       </div>
     </div>
@@ -481,68 +495,178 @@ function NavBtn({ icon, label, active, onClick }: { icon: ReactNode; label: stri
     </button>
   );
 }
-
-// ── AD COMPONENTS ─────────────────────────────────────────────────────────────
-function AdBanner({ slot }: { slot: string }) {
-  const [idx, setIdx] = useState(() => Math.floor(Math.random() * AD_INVENTORY.length));
-  useEffect(() => {
-    const t = setInterval(() => setIdx(i => (i + 1) % AD_INVENTORY.length), 7000);
-    return () => clearInterval(t);
-  }, []);
-  const ad = AD_INVENTORY[idx];
+function GlobalBadgeStyles() {
   return (
-    <div style={{
-      position: "relative", background: "#0D0D14", border: `1px dashed ${T.border}`,
-      borderRadius: 14, padding: "12px 14px", marginBottom: 16, display: "flex",
-      alignItems: "center", gap: 12,
-    }}>
-      <span style={{
-        position: "absolute", top: 6, right: 10, fontSize: 9, fontWeight: 700,
-        color: T.textDim, letterSpacing: "0.5px", textTransform: "uppercase",
-      }}>Advertisement · {slot}</span>
-      <div style={{ width: 42, height: 42, borderRadius: 10, background: `${ad.color}20`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, flexShrink: 0 }}>{ad.emoji}</div>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 11, fontWeight: 800, color: ad.color, marginBottom: 2 }}>{ad.brand}</div>
-        <div style={{ fontSize: 11, color: T.textSecondary, lineHeight: 1.35 }}>{ad.headline}</div>
-      </div>
-      <button style={{ flexShrink: 0, padding: "7px 12px", borderRadius: 9, background: ad.color, color: "#0A0A0F", fontWeight: 800, fontSize: 11, border: "none", cursor: "pointer" }}>{ad.cta}</button>
-    </div>
+    <style>{`
+      @keyframes badgePulse { 0%,100% { opacity:0.16; transform:scale(1); } 50% { opacity:0.32; transform:scale(1.08); } }
+      @keyframes badgeSpin { from { transform:rotate(0deg); } to { transform:rotate(360deg); } }
+      @keyframes sparkleFloat { 0% { opacity:0; transform:translateY(0) scale(0.5); } 40% { opacity:1; transform:translateY(-8px) scale(1); } 100% { opacity:0; transform:translateY(-16px) scale(0.5); } }
+    `}</style>
   );
 }
-function InterstitialAd({ onClose }: { onClose: () => void }) {
-  const [ad] = useState(() => AD_INVENTORY[Math.floor(Math.random() * AD_INVENTORY.length)]);
-  const [secondsLeft, setSecondsLeft] = useState(5);
-  useEffect(() => {
-    if (secondsLeft <= 0) return;
-    const t = setTimeout(() => setSecondsLeft(s => s - 1), 1000);
-    return () => clearTimeout(t);
-  }, [secondsLeft]);
-  const canClose = secondsLeft <= 0;
+
+// ── BADGE COMPANION DATA ──────────────────────────────────────────────────────
+// Tiers: baby(day1-6) -> bronze(7-20) -> silver(21-59) -> gold(60-89) -> diamond(90+)
+const BADGE_TIERS = [
+  { id:"baby",    label:"Rookie",  min:1,  base:"#D5D8E3", edge:"#8E93A6", glow:"#AEB3C4", emblem:"star" as const },
+  { id:"bronze",  label:"Bronze",  min:7,  base:"#E3A45B", edge:"#8B4A18", glow:"#CD7F32", emblem:"star" as const },
+  { id:"silver",  label:"Silver",  min:21, base:"#EDEFF5", edge:"#9AA0B4", glow:"#D6DAE6", emblem:"star" as const },
+  { id:"gold",    label:"Gold",    min:60, base:"#FFDE7A", edge:"#B8860B", glow:"#FFD700", emblem:"crown" as const },
+  { id:"diamond", label:"Diamond", min:90, base:"#BFFFF3", edge:"#39FF14", glow:"#7DFFEA", emblem:"diamond" as const },
+];
+function getBadgeTier(dayNum: number) {
+  let t = BADGE_TIERS[0];
+  for (const b of BADGE_TIERS) { if (dayNum >= b.min) t = b; }
+  return t;
+}
+function getNextBadgeTier(dayNum: number) {
+  const cur = getBadgeTier(dayNum);
+  const idx = BADGE_TIERS.indexOf(cur);
+  return idx < BADGE_TIERS.length - 1 ? BADGE_TIERS[idx + 1] : null;
+}
+const BADGE_AURA_COLORS = ["#39FF14","#FF3B3B","#6366F1","#F59E0B","#EC4899","#38BDF8","#A855F7","#10B981"];
+const BADGE_QUOTES: Record<string,string[]> = {
+  streak:[
+    "You showed up again. Your tissue is literally rebuilding right now because of YOUR consistency.",
+    "Day after day. That consistency is exactly what separates good recoveries from great ones.",
+    "Your streak tells me everything — you are a competitor even in rehab.",
+    "Keep this streak alive. The athletes who make it back? They show up daily.",
+    "I have trained champions. The ones who show up every day always come back stronger.",
+  ],
+  goal:[
+    "PERFECT DAY. Recovery science shows consistent task completion accelerates healing by 30%.",
+    "All tasks done today. As your trainer I am proud — this is elite-level discipline.",
+    "Full completion! Protein timing, ice protocol, everything dialed in. You are doing this RIGHT.",
+    "That is how champions train. Every. Single. Task. Well done athlete.",
+    "Goal complete! Your body felt that. Keep stacking these days.",
+  ],
+  miss:[
+    "Hey, missed tasks today. That is okay — but let us talk about what got in the way so we fix it tomorrow.",
+    "Recovery is not linear. But missing tasks slows the timeline. Back at it tomorrow.",
+    "I need you to show up tomorrow. Your injury is counting on your consistency.",
+    "One miss does not define your recovery. But patterns do. See you tomorrow.",
+  ],
+  morning:[
+    "Good morning athlete. Today is another rep toward your comeback. Let us go.",
+    "Rise up. Your comeback starts with today's protocol. No excuses.",
+    "New day. New chance to heal. What we do today matters for who you are in 6 weeks.",
+    "Morning! Remember why you started. That reason is bigger than today's discomfort.",
+  ],
+};
+const STAR_PATH = "M0,-46 L13,-14 L46,-14 L19,7 L28,42 L0,20 L-28,42 L-19,7 L-46,-14 L-13,-14 Z";
+const DIAMOND_PATH = "M0,-46 L32,-8 L0,50 L-32,-8 Z";
+const DIAMOND_FACETS = ["M0,-46 L0,50", "M-32,-8 L32,-8", "M-16,-27 L0,-46 L16,-27", "M-16,-27 L-32,-8", "M16,-27 L32,-8"];
+const CROWN_PATH = "M-22,8 L-22,-8 L-11,2 L0,-16 L11,2 L22,-8 L22,8 Z";
+const SPARKLE_OFFSETS = [
+  { x: -1.1, y: -0.9 }, { x: 1.15, y: -0.6 }, { x: -0.8, y: 1.0 }, { x: 1.0, y: 0.95 },
+];
+
+// ── BADGE COMPANION (SVG) ─────────────────────────────────────────────────────
+function BadgeCompanion({ dayNum, mood = "happy", size = 90, auraColor = T.neon }: {
+  dayNum: number; mood?: "happy"|"excited"|"neutral"|"sad"; size?: number; auraColor?: string;
+}) {
+  const tier = getBadgeTier(dayNum);
+  const s = size;
+  const cx = s * 0.5;
+  const cy = s * 0.44;
+  const outerR = s * 0.33;
+  const gradId = `badgeGrad-${tier.id}-${size}`;
+  const isSad = mood === "sad";
+  const isNeutral = mood === "neutral";
+  const showGlow = !isSad && !isNeutral;
+  const showShine = (tier.id === "gold" || tier.id === "diamond") && !isSad && !isNeutral;
+  const showSparkles = mood === "excited";
+  const ribbonLeft = `${cx-outerR*0.55},${cy+outerR*0.55} ${cx-outerR*0.15},${cy+outerR*0.55} ${cx-outerR*0.05},${s*0.97} ${cx-outerR*0.65},${s*0.86}`;
+  const ribbonRight = `${cx+outerR*0.55},${cy+outerR*0.55} ${cx+outerR*0.15},${cy+outerR*0.55} ${cx+outerR*0.05},${s*0.97} ${cx+outerR*0.65},${s*0.86}`;
   return (
-    <div style={{
-      position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", zIndex: 200,
-      display: "flex", alignItems: "center", justifyContent: "center", padding: 20,
-    }}>
-      <div style={{
-        width: "100%", maxWidth: 380, background: T.surface, borderRadius: 20,
-        border: `1px solid ${T.border}`, padding: 24, textAlign: "center", position: "relative",
-      }}>
-        <span style={{ position: "absolute", top: 14, left: 18, fontSize: 10, fontWeight: 700, color: T.textDim, letterSpacing: "0.5px", textTransform: "uppercase" }}>Advertisement</span>
-        <div style={{ fontSize: 64, marginTop: 20, marginBottom: 14 }}>{ad.emoji}</div>
-        <div style={{ fontWeight: 900, fontSize: 18, color: ad.color, marginBottom: 8 }}>{ad.brand}</div>
-        <p style={{ fontSize: 14, color: T.textSecondary, lineHeight: 1.5, marginBottom: 20 }}>{ad.headline}</p>
-        <button style={{ width: "100%", padding: "13px", borderRadius: 12, background: ad.color, color: "#0A0A0F", fontWeight: 800, fontSize: 14, border: "none", cursor: "pointer", marginBottom: 12 }}>{ad.cta}</button>
-        <button
-          onClick={() => canClose && onClose()}
-          disabled={!canClose}
-          style={{
-            width: "100%", padding: "11px", borderRadius: 12, background: "transparent",
-            color: canClose ? T.textSecondary : T.textDim, fontWeight: 700, fontSize: 12,
-            border: `1.5px solid ${canClose ? T.border : T.textDim}`, cursor: canClose ? "pointer" : "not-allowed",
-          }}>
-          {canClose ? "Continue ✕" : `Skip in ${secondsLeft}s`}
-        </button>
+    <svg width={s} height={s} viewBox={`0 0 ${s} ${s}`} style={isSad ? { filter: "grayscale(0.55) brightness(0.8)" } : {}}>
+      <defs>
+        <radialGradient id={gradId} cx="35%" cy="30%" r="75%">
+          <stop offset="0%" stopColor="#FFFFFF" stopOpacity="0.9" />
+          <stop offset="35%" stopColor={tier.base} />
+          <stop offset="100%" stopColor={tier.edge} />
+        </radialGradient>
+      </defs>
+      <polygon points={ribbonLeft} fill={tier.edge} opacity={0.9} />
+      <polygon points={ribbonRight} fill={tier.edge} opacity={0.9} />
+      {showGlow && (
+        <circle cx={cx} cy={cy} r={outerR*1.35} fill={auraColor} opacity={0.18}
+          style={{ transformOrigin: `${cx}px ${cy}px`, animation: `badgePulse ${mood==="excited" ? "1.1s" : "2.6s"} ease-in-out infinite` }} />
+      )}
+      <circle cx={cx} cy={cy} r={outerR*1.12} fill="none" stroke={tier.glow} strokeWidth={s*0.015} opacity={0.5} />
+      <circle cx={cx} cy={cy} r={outerR} fill={`url(#${gradId})`} stroke={tier.edge} strokeWidth={s*0.022} />
+      <circle cx={cx} cy={cy} r={outerR*0.8} fill="none" stroke="white" strokeOpacity={0.3} strokeWidth={s*0.008} />
+      {showShine && (
+        <g style={{ transformOrigin: `${cx}px ${cy}px`, animation: "badgeSpin 5s linear infinite" }}>
+          <ellipse cx={cx} cy={cy - outerR*0.5} rx={outerR*0.5} ry={outerR*0.18} fill="white" opacity={0.35} />
+        </g>
+      )}
+      {tier.emblem === "crown" && (
+        <path d={CROWN_PATH} transform={`translate(${cx},${cy - outerR*0.85}) scale(${outerR/60})`} fill={tier.glow} stroke={tier.edge} strokeWidth={2} />
+      )}
+      {tier.emblem === "diamond" ? (
+        <g transform={`translate(${cx},${cy}) scale(${outerR/60})`}>
+          <path d={DIAMOND_PATH} fill="white" opacity={0.92} />
+          {DIAMOND_FACETS.map((d, i) => <path key={i} d={d} stroke={tier.edge} strokeWidth={2} opacity={0.4} />)}
+        </g>
+      ) : (
+        <path d={STAR_PATH} transform={`translate(${cx},${cy}) scale(${outerR/60})`} fill="white" opacity={0.92} />
+      )}
+      {showSparkles && SPARKLE_OFFSETS.map((o, i) => (
+        <circle key={i} cx={cx + o.x*outerR} cy={cy + o.y*outerR} r={s*0.022} fill={tier.glow}
+          style={{ animation: `sparkleFloat 1.6s ease-in-out ${i*0.2}s infinite` }} />
+      ))}
+    </svg>
+  );
+}
+
+// ── BODY PROFILE (MACROS) ─────────────────────────────────────────────────────
+function BodyProfileForm({ onSave }: { onSave: (p: BodyProfile) => void }) {
+  const [form, setForm] = useState<BodyProfile>({ height: "", weight: "", gender: "male", goal: "return" });
+  const canSave = form.height && form.weight;
+  return (
+    <div style={{ padding: "20px", background: T.surface, borderRadius: 18, border: `1px solid ${T.border}`, marginBottom: 16 }}>
+      <h3 style={{ fontWeight: 900, fontSize: 16, color: T.textPrimary, marginBottom: 4 }}>Your Body Profile</h3>
+      <p style={{ fontSize: 12, color: T.textSecondary, marginBottom: 16 }}>We calculate exact daily macro targets for your recovery.</p>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
+        {([["HEIGHT (cm)", "height", "175"], ["WEIGHT (kg)", "weight", "75"]] as [string,string,string][]).map(([label, key, ph]) => (
+          <div key={key}>
+            <label style={{ fontSize: 11, fontWeight: 700, color: T.textMuted, display: "block", marginBottom: 4 }}>{label}</label>
+            <input type="number" placeholder={ph}
+              value={(form as Record<string, string>)[key]}
+              onChange={e => setForm(f => ({ ...f, [key]: e.target.value }))}
+              style={{ width: "100%", padding: "10px", borderRadius: 10, border: `1.5px solid ${T.border}`, background: T.card, color: T.textPrimary, fontSize: 14, fontFamily: "inherit", boxSizing: "border-box", outline: "none" }} />
+          </div>
+        ))}
       </div>
+      <div style={{ marginBottom: 12 }}>
+        <label style={{ fontSize: 11, fontWeight: 700, color: T.textMuted, display: "block", marginBottom: 4 }}>BIOLOGICAL SEX (for BMR calculation)</label>
+        <div style={{ display: "flex", gap: 8 }}>
+          {["male", "female"].map(g => (
+            <button key={g} onClick={() => setForm(f => ({ ...f, gender: g }))}
+              style={{
+                flex: 1, padding: "8px", borderRadius: 10,
+                border: `2px solid ${form.gender === g ? T.neon : T.border}`,
+                background: form.gender === g ? T.neonL : T.surface,
+                fontWeight: 700, fontSize: 12, color: form.gender === g ? T.neon : T.textSecondary,
+                cursor: "pointer", textTransform: "capitalize",
+              }}>
+              {g}
+            </button>
+          ))}
+        </div>
+      </div>
+      <button onClick={() => canSave ? onSave(form) : null}
+        style={{
+          width: "100%", padding: "12px", borderRadius: 12,
+          background: canSave ? T.neon : T.border,
+          color: canSave ? T.bg : T.textMuted,
+          fontWeight: 800, fontSize: 13, border: "none",
+          cursor: canSave ? "pointer" : "not-allowed",
+          boxShadow: canSave ? shadow.neon : "none",
+        }}>
+        Calculate My Macros →
+      </button>
     </div>
   );
 }
@@ -558,11 +682,11 @@ function Welcome({ onNext }: { onNext: () => void }) {
             Your comeback<br />starts <span style={{ color: T.neon, textShadow: shadow.neon }}>today.</span>
           </h1>
           <p style={{ fontSize: 15, color: T.textSecondary, lineHeight: 1.6, maxWidth: 300, margin: "0 auto" }}>
-            Science-backed recovery. Free forever, supported by ads.
+            Science-backed recovery. Personalised nutrition. A trophy companion that grows with you.
           </p>
         </div>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "center", marginBottom: 32 }}>
-          {["🏆 Pro protocols", "📿 Daily faith", "🧪 Evidence-based", "📅 Real tracking"].map((f, i) => (
+          {["🏆 Pro protocols", "📿 Daily faith", "🧪 Personalised macros", "🏅 Badge Companion", "📅 Real tracking"].map((f, i) => (
             <div key={i} style={{
               fontSize: 11, fontWeight: 700, color: T.neon, background: T.neonL,
               borderRadius: 12, padding: "6px 12px", border: `1px solid ${T.neon}30`,
@@ -571,7 +695,7 @@ function Welcome({ onNext }: { onNext: () => void }) {
         </div>
       </div>
       <PrimaryBtn onClick={onNext}>Build My Recovery Plan →</PrimaryBtn>
-      <p style={{ textAlign: "center", fontSize: 11, color: T.textMuted, marginTop: 12 }}>100% free · Ad-supported · Progress saved automatically</p>
+      <p style={{ textAlign: "center", fontSize: 11, color: T.textMuted, marginTop: 12 }}>Everything unlocked · No ads · Progress saved automatically</p>
     </div>
   );
 }
@@ -579,7 +703,7 @@ function SportSelect({ onNext }: { onNext: (s: typeof SPORTS[0]) => void }) {
   return (
     <div style={{ minHeight: "100%", display: "flex", flexDirection: "column", background: T.bg }}>
       <div style={{ padding: "20px 20px 0", position: "sticky", top: 0, background: T.bg, zIndex: 10 }}>
-        <Logo size={22} /><StepBar total={4} current={1} />
+        <Logo size={22} /><StepBar total={5} current={1} />
         <h2 style={{ fontWeight: 900, fontSize: 22, color: T.textPrimary, marginBottom: 4 }}>What is your sport?</h2>
         <p style={{ fontSize: 13, color: T.textSecondary, marginBottom: 16 }}>You will join a squad of athletes from your sport.</p>
       </div>
@@ -607,7 +731,7 @@ function InjurySelect({ onNext }: { onNext: (inj: typeof INJURIES[0]) => void })
   return (
     <div style={{ minHeight: "100%", display: "flex", flexDirection: "column", background: T.bg }}>
       <div style={{ padding: "20px 20px 0", position: "sticky", top: 0, background: T.bg, zIndex: 10 }}>
-        <Logo size={22} /><StepBar total={4} current={2} />
+        <Logo size={22} /><StepBar total={5} current={2} />
         <h2 style={{ fontWeight: 900, fontSize: 22, color: T.textPrimary, marginBottom: 4 }}>What is your injury?</h2>
         <p style={{ fontSize: 13, color: T.textSecondary, marginBottom: 16 }}>Select closest match — we fine-tune by severity next.</p>
       </div>
@@ -630,7 +754,7 @@ function SeveritySelect({ onNext }: { onNext: (sv: typeof SEVERITIES[0]) => void
   return (
     <div style={{ minHeight: "100%", display: "flex", flexDirection: "column", background: T.bg }}>
       <div style={{ padding: "20px 20px 0", position: "sticky", top: 0, background: T.bg, zIndex: 10 }}>
-        <Logo size={22} /><StepBar total={4} current={3} />
+        <Logo size={22} /><StepBar total={5} current={3} />
         <h2 style={{ fontWeight: 900, fontSize: 22, color: T.textPrimary, marginBottom: 4 }}>How severe is it?</h2>
         <p style={{ fontSize: 13, color: T.textSecondary, marginBottom: 16 }}>This determines your protocol intensity.</p>
       </div>
@@ -653,9 +777,9 @@ function GoalSelect({ onNext }: { onNext: (g: typeof GOALS_LIST[0]) => void }) {
   return (
     <div style={{ minHeight: "100%", display: "flex", flexDirection: "column", background: T.bg }}>
       <div style={{ padding: "20px 20px 0", position: "sticky", top: 0, background: T.bg, zIndex: 10 }}>
-        <Logo size={22} /><StepBar total={4} current={4} />
+        <Logo size={22} /><StepBar total={5} current={4} />
         <h2 style={{ fontWeight: 900, fontSize: 22, color: T.textPrimary, marginBottom: 4 }}>What is your goal?</h2>
-        <p style={{ fontSize: 13, color: T.textSecondary, marginBottom: 16 }}>Shapes your daily task emphasis.</p>
+        <p style={{ fontSize: 13, color: T.textSecondary, marginBottom: 16 }}>Shapes your daily task emphasis and macros.</p>
       </div>
       <div style={{ flex: 1, overflowY: "auto", padding: "0 20px 32px" }}>
         {GOALS_LIST.map(g => (
@@ -673,9 +797,86 @@ function GoalSelect({ onNext }: { onNext: (g: typeof GOALS_LIST[0]) => void }) {
   );
 }
 
+// ── BADGE SETUP (pick aura color + nickname) ─────────────────────────────────
+function BadgeSetup({ onSave, onBack }: { onSave: (b: Badge) => void; onBack: () => void }) {
+  const [auraColor, setAuraColor] = useState(BADGE_AURA_COLORS[0]);
+  const [nickname, setNickname] = useState("");
+  const [previewMood, setPreviewMood] = useState<"happy"|"excited"|"neutral">("happy");
+  useEffect(() => {
+    const moods: ("happy"|"excited"|"neutral")[] = ["happy","excited","neutral"];
+    let i = 0;
+    const t = setInterval(() => { i=(i+1)%moods.length; setPreviewMood(moods[i]); }, 1800);
+    return () => clearInterval(t);
+  }, []);
+  return (
+    <div style={{ minHeight:"100%", background:T.bg, display:"flex", flexDirection:"column" }}>
+      <GlobalBadgeStyles />
+      <div style={{ padding:"20px 20px 0", position:"sticky", top:0, background:T.bg, zIndex:10 }}>
+        <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:12 }}>
+          <button onClick={onBack} style={{ background:"none", border:"none", cursor:"pointer", color:T.textSecondary, padding:4 }}>
+            <ArrowLeft size={20}/>
+          </button>
+          <Logo size={22}/>
+        </div>
+        <StepBar total={5} current={5} />
+        <h2 style={{ fontWeight:900, fontSize:22, color:T.textPrimary, marginBottom:4 }}>Set Up Your Badge</h2>
+        <p style={{ fontSize:13, color:T.textSecondary, marginBottom:12 }}>
+          Starts as a <strong style={{color:T.neon}}>Rookie</strong> badge on day 1 and levels up to Bronze, Silver, Gold, then Diamond as your streak builds. 🏅
+        </p>
+      </div>
+      <div style={{ flex:1, overflowY:"auto", padding:"0 20px 32px" }}>
+        <div style={{ display:"flex", justifyContent:"center", marginBottom:20 }}>
+          <div style={{ background:T.surface, borderRadius:24, padding:"20px 24px", border:`2px solid ${T.neon}50`, boxShadow:shadow.neon, display:"inline-flex", flexDirection:"column", alignItems:"center", gap:10 }}>
+            <BadgeCompanion dayNum={1} mood={previewMood} size={140} auraColor={auraColor} />
+            <div style={{ textAlign:"center" }}>
+              <div style={{ fontWeight:900, fontSize:15, color:T.neon, textShadow:shadow.neon }}>
+                {nickname || "Name your badge"} · Rookie
+              </div>
+              <div style={{ fontSize:11, color:T.textMuted, marginTop:2 }}>Grows with your streak every day</div>
+            </div>
+          </div>
+        </div>
+        <div style={{ marginBottom:20 }}>
+          <div style={{ fontWeight:800, fontSize:12, color:T.neon, marginBottom:8, letterSpacing:"1px", textTransform:"uppercase" }}>Name Your Badge</div>
+          <input
+            value={nickname}
+            onChange={e => setNickname(e.target.value.slice(0,16))}
+            placeholder="e.g. The Comeback, Ironheart..."
+            maxLength={16}
+            style={{ width:"100%", padding:"12px 14px", borderRadius:12, border:`1.5px solid ${nickname?T.neon:T.border}`, background:T.card, color:T.textPrimary, fontSize:15, fontFamily:"inherit", outline:"none", boxSizing:"border-box", boxShadow:nickname?shadow.neon:"none" }}
+          />
+          <div style={{ fontSize:11, color:T.textMuted, marginTop:4 }}>{nickname.length}/16 characters</div>
+        </div>
+        <div style={{ fontWeight:800, fontSize:12, color:T.neon, marginBottom:8, letterSpacing:"1px", textTransform:"uppercase" }}>Aura Color</div>
+        <div style={{ display:"flex", gap:10, flexWrap:"wrap", marginBottom:24 }}>
+          {BADGE_AURA_COLORS.map(c => (
+            <button key={c} onClick={() => setAuraColor(c)}
+              style={{ width:42, height:42, borderRadius:21, background:c, cursor:"pointer", border:`3px solid ${auraColor===c?"white":"transparent"}`, boxShadow:auraColor===c?`0 0 14px ${c}`:undefined }}/>
+          ))}
+        </div>
+        <div style={{ background:T.surface, borderRadius:16, padding:16, border:`1px solid ${T.border}`, marginBottom:20 }}>
+          <div style={{ fontWeight:800, fontSize:12, color:T.neon, marginBottom:12, letterSpacing:"0.5px" }}>GROWTH TIERS</div>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-end" }}>
+            {BADGE_TIERS.map(tier => (
+              <div key={tier.id} style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:4 }}>
+                <BadgeCompanion dayNum={tier.min} mood="happy" size={46} auraColor={auraColor} />
+                <div style={{ fontSize:9, color:T.textMuted, fontWeight:700, textAlign:"center" }}>Day {tier.min}<br/>{tier.label}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+        <button onClick={() => onSave({ auraColor, nickname: nickname || "Comeback Badge" })}
+          style={{ width:"100%", padding:"15px", borderRadius:14, background:T.neon, color:T.bg, fontWeight:900, fontSize:16, border:"none", cursor:"pointer", boxShadow:shadow.neon }}>
+          {nickname ? `Save ${nickname} ✨` : "Save My Badge ✨"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ── APP DASHBOARD ─────────────────────────────────────────────────────────────
 function AppDashboard({ saved, onReset }: { saved: SavedState; onReset: () => void }) {
-  const [tab, setTab] = useState<"home" | "today" | "protocol" | "squad" | "rewards">("home");
+  const [tab, setTab] = useState<"home" | "today" | "protocol" | "squad" | "badge">("home");
   const getLiveCount = (base: number) => {
     const daySeed = parseInt(todayStr().replace(/-/g,"")) % 100;
     const sportSeed = saved.sportId.length * 7;
@@ -686,10 +887,10 @@ function AppDashboard({ saved, onReset }: { saved: SavedState; onReset: () => vo
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
   const [replyText, setReplyText] = useState("");
   const [newPost, setNewPost] = useState("");
+  const [bodyProfile, setBodyProfile] = useState<BodyProfile | null>(saved.bodyProfile);
   const [suppChecked, setSuppChecked] = useState<boolean[]>(() => {
     const s = loadState(); return s?.suppChecked?.[todayStr()] ?? Array(SUPPLEMENTS.length).fill(false);
   });
-  const [showInterstitial, setShowInterstitial] = useState(false);
   const sport    = SPORTS.find(s => s.id === saved.sportId);
   const injury   = INJURIES.find(i => i.id === saved.injuryId);
   const severity = SEVERITIES.find(s => s.id === saved.severityId);
@@ -709,14 +910,6 @@ function AppDashboard({ saved, onReset }: { saved: SavedState; onReset: () => vo
       const next = [...prev]; next[idx] = !next[idx];
       const s = loadState();
       if (s) { s.completedTasks = s.completedTasks || {}; s.completedTasks[todayKey] = next; saveState(s); }
-      const justFinished = next.every(Boolean) && next.length > 0;
-      if (justFinished) {
-        const s2 = loadState();
-        if (s2 && s2.lastInterstitialDate !== todayKey) {
-          s2.lastInterstitialDate = todayKey; saveState(s2);
-          setShowInterstitial(true);
-        }
-      }
       return next;
     });
   }, [todayKey]);
@@ -732,6 +925,18 @@ function AppDashboard({ saved, onReset }: { saved: SavedState; onReset: () => vo
   const morningTasks   = tasks.slice(0, 3);
   const afternoonTasks = tasks.slice(3, 7);
   const eveningTasks   = tasks.slice(7);
+  const badgeMood: "happy" | "sad" | "excited" | "neutral" =
+    allDone ? "excited" : doneCount >= tasks.length * 0.6 ? "happy" : !saved.streakAlive ? "sad" : "neutral";
+  const badgeQuote = allDone
+    ? BADGE_QUOTES.goal[dayNum % BADGE_QUOTES.goal.length]
+    : !saved.streakAlive
+    ? BADGE_QUOTES.miss[dayNum % BADGE_QUOTES.miss.length]
+    : doneCount === 0
+    ? BADGE_QUOTES.morning[dayNum % BADGE_QUOTES.morning.length]
+    : BADGE_QUOTES.streak[dayNum % BADGE_QUOTES.streak.length];
+  const macros = bodyProfile ? calcMacros(bodyProfile.height, bodyProfile.weight, bodyProfile.gender, saved.goalId) : null;
+  const tier = getBadgeTier(dayNum);
+  const nextTier = getNextBadgeTier(dayNum);
   const handleLike = (postId: string) => {
     setPosts(prev => prev.map(p => p.id === postId ? { ...p, likes: p.likedByMe ? p.likes - 1 : p.likes + 1, likedByMe: !p.likedByMe } : p));
   };
@@ -762,7 +967,17 @@ function AppDashboard({ saved, onReset }: { saved: SavedState; onReset: () => vo
               <div style={{ width: 36, height: 36, borderRadius: 18, background: T.surface, border: `1px solid ${T.border}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 }}>{sport?.icon || "🏆"}</div>
             </div>
           </div>
-          <AdBanner slot="home-top" />
+          {saved.badge && (
+            <NeonCard style={{ marginBottom: 16 }}>
+              <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+                <BadgeCompanion dayNum={dayNum} mood={badgeMood} size={72} auraColor={saved.badge.auraColor} />
+                <div style={{ flex: 1 }}>
+                  <div style={{fontWeight:800,fontSize:10,color:T.neon,marginBottom:4,letterSpacing:"1px"}}>{saved.badge.nickname.toUpperCase()} SAYS</div>
+                  <p style={{ fontSize: 13, color: T.textPrimary, lineHeight: 1.5, fontStyle: "italic", margin: 0 }}>{badgeQuote}</p>
+                </div>
+              </div>
+            </NeonCard>
+          )}
           <Card style={{ background: "linear-gradient(135deg,#0D0D1A,#121220)", border: `1px solid ${T.neon}30`, marginBottom: 16, padding: "18px 16px" }}>
             <div style={{ fontSize: 11, fontWeight: 700, color: T.textMuted, marginBottom: 6, letterSpacing: "1px" }}>WEEK {weekNum} · PHASE {phase}</div>
             <h2 style={{ fontWeight: 900, fontSize: 22, color: T.textPrimary, lineHeight: 1.1, marginBottom: 6 }}>Day {dayNum} of {(injury?.weeks || 36) * 7}</h2>
@@ -862,12 +1077,12 @@ function AppDashboard({ saved, onReset }: { saved: SavedState; onReset: () => vo
                 </div>
               </div>
             ))}
-            <AdBanner slot="today-mid" />
             {allDone && (
               <Card style={{ background: T.neonL, border: `1.5px solid ${T.neon}`, marginTop: 10, textAlign: "center", padding: "20px 16px", boxShadow: shadow.neon }}>
                 <div style={{ fontSize: 40, marginBottom: 8 }}>🎉</div>
                 <div style={{ fontWeight: 900, fontSize: 18, color: T.neon, marginBottom: 4, textShadow: shadow.neon }}>Day Complete!</div>
                 <div style={{ fontSize: 13, color: T.textSecondary }}>Every task done. Your body is healing. See you tomorrow.</div>
+                {saved.badge && <div style={{ marginTop:12,display:"flex",justifyContent:"center" }}><BadgeCompanion dayNum={dayNum} mood="excited" size={80} auraColor={saved.badge.auraColor} /></div>}
               </Card>
             )}
           </div>
@@ -897,7 +1112,6 @@ function AppDashboard({ saved, onReset }: { saved: SavedState; onReset: () => vo
               </div>
             </div>
           ))}
-          <AdBanner slot="protocol-mid" />
           <h2 style={{ fontWeight: 900, fontSize: 17, color: T.textPrimary, marginBottom: 4, marginTop: 8 }}>💊 Supplement Schedule</h2>
           <p style={{ fontSize: 12, color: T.textSecondary, marginBottom: 12 }}>Tap each to mark as taken. Timed for maximum absorption throughout the day.</p>
           {SUPPLEMENTS.map((s, i) => (
@@ -922,8 +1136,31 @@ function AppDashboard({ saved, onReset }: { saved: SavedState; onReset: () => vo
             </div>
           ))}
           <div style={{ fontSize: 11, color: T.textMuted, textAlign: "center", marginBottom: 20 }}>{suppChecked.filter(Boolean).length}/{SUPPLEMENTS.length} supplements taken today</div>
-          <h2 style={{ fontWeight: 900, fontSize: 17, color: T.textPrimary, marginBottom: 4 }}>🥗 Nutrition Guide</h2>
+          <h2 style={{ fontWeight: 900, fontSize: 17, color: T.textPrimary, marginBottom: 4 }}>🥗 Nutrition & Macros</h2>
           <p style={{ fontSize: 12, color: T.textSecondary, marginBottom: 12 }}>Science-backed anti-inflammatory eating for faster recovery.</p>
+          {!bodyProfile ? (
+            <BodyProfileForm onSave={p => { setBodyProfile(p); const s = loadState(); if (s) { s.bodyProfile = p; saveState(s); } }} />
+          ) : macros ? (
+            <Card style={{ marginBottom: 16, background: T.neonL, border: `1.5px solid ${T.neon}40` }}>
+              <div style={{ fontWeight: 800, fontSize: 13, color: T.neon, marginBottom: 12 }}>📊 Your Daily Targets</div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
+                {[
+                  { label: "Calories", val: `${macros.calories}`, unit: "kcal", color: T.orange },
+                  { label: "Protein",  val: `${macros.protein}g`, unit: "priority", color: T.neon },
+                  { label: "Carbs",    val: `${macros.carbs}g`,   unit: "energy",   color: "#F59E0B" },
+                  { label: "Fat",      val: `${macros.fat}g`,     unit: "joints",   color: T.teal },
+                ].map((m, i) => (
+                  <div key={i} style={{ background: T.card, borderRadius: 12, padding: "10px", textAlign: "center", border: `1px solid ${T.border}` }}>
+                    <div style={{ fontWeight: 900, fontSize: 18, color: m.color, textShadow: m.color === T.neon ? shadow.neon : "none" }}>{m.val}</div>
+                    <div style={{ fontWeight: 700, fontSize: 11, color: T.textPrimary }}>{m.label}</div>
+                    <div style={{ fontSize: 9, color: T.textMuted }}>{m.unit}</div>
+                  </div>
+                ))}
+              </div>
+              <div style={{ fontSize: 11, color: T.textSecondary, lineHeight: 1.5 }}>Based on Mifflin-St Jeor formula. Protein at 2g/kg bodyweight — elevated for injury recovery per sports nutrition research.</div>
+              <button onClick={() => setBodyProfile(null)} style={{ marginTop: 8, fontSize: 11, color: T.textMuted, background: "none", border: "none", cursor: "pointer", textDecoration: "underline" }}>Update my measurements</button>
+            </Card>
+          ) : null}
           {DIET_GUIDE.map((d, i) => (
             <Card key={i} style={{ marginBottom: 10 }}>
               <div style={{ fontWeight: 800, fontSize: 12, color: T.neon, marginBottom: 6 }}>{d.category}</div>
@@ -940,7 +1177,6 @@ function AppDashboard({ saved, onReset }: { saved: SavedState; onReset: () => vo
             <div style={{ width: 8, height: 8, borderRadius: 4, background: T.neon, boxShadow: shadow.neon }} />
             <span style={{ fontSize: 13, fontWeight: 700, color: T.neon }}>{sport ? getLiveCount(sport.liveUsers) : 0} athletes active right now</span>
           </div>
-          <AdBanner slot="squad-top" />
           <Card style={{ marginBottom: 16 }}>
             <textarea value={newPost} onChange={e => setNewPost(e.target.value)}
               placeholder={`Share your recovery update with the ${sport?.label} squad...`}
@@ -996,41 +1232,69 @@ function AppDashboard({ saved, onReset }: { saved: SavedState; onReset: () => vo
           ))}
         </div>
       );
-      case "rewards": return (
+      case "badge": return (
         <div style={{ flex: 1, overflowY: "auto", background: T.bg, padding: "20px 18px 100px" }}>
-          <h1 style={{ fontWeight: 900, fontSize: 22, color: T.textPrimary, marginBottom: 4 }}>Milestones</h1>
-          <p style={{ fontSize: 13, color: T.textSecondary, marginBottom: 6 }}>Stay consistent. Unlock badges as you progress.</p>
-          <Card style={{ background: "linear-gradient(135deg,#0A0A14,#0D0D1A)", border: `1px solid ${T.neon}40`, marginBottom: 16, padding: "14px 16px" }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: T.textMuted, marginBottom: 6 }}>YOUR STREAK</div>
-            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
-              <StreakFire streak={saved.streak} alive={saved.streakAlive} />
-              <div style={{ fontSize: 11, color: T.textSecondary }}>{saved.streakAlive ? "days strong" : "relight it today"}</div>
+          {!saved.badge ? (
+            <div style={{ textAlign: "center", padding: "40px 20px" }}>
+              <div style={{fontSize:64,marginBottom:12}}>🏅</div>
+              <h2 style={{fontWeight:900,fontSize:22,color:T.textPrimary,marginBottom:8}}>Your Badge Companion</h2>
+              <p style={{fontSize:14,color:T.textSecondary,marginBottom:16,lineHeight:1.6}}>Finish setup from onboarding to unlock your Badge Companion.</p>
             </div>
-            <ProgressBar pct={pct} color={T.neon} />
-            <div style={{ fontSize: 10, color: T.textMuted, marginTop: 4 }}>Day {dayNum} of {(injury?.weeks || 36) * 7} · {pct}% complete</div>
-          </Card>
-          <AdBanner slot="rewards-mid" />
-          {MILESTONES.map((m, i) => {
-            const unlocked = dayNum >= m.day;
-            const isNext   = !unlocked && (i === 0 || dayNum >= MILESTONES[i - 1].day);
-            return (
-              <Card key={i} style={{ marginBottom: 12, opacity: !unlocked && !isNext ? 0.35 : 1, border: unlocked ? `1.5px solid ${T.neon}60` : isNext ? `1.5px solid ${T.indigo}60` : `1px solid ${T.border}`, boxShadow: unlocked ? shadow.neon : "none" }}>
-                <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
-                  <div style={{ width: 46, height: 46, borderRadius: 23, background: unlocked ? T.neonL : isNext ? T.indigoL : T.surface, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, flexShrink: 0, boxShadow: unlocked ? shadow.neon : "none" }}>{m.badge}</div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-                      <span style={{ fontWeight: 800, fontSize: 14, color: unlocked ? T.neon : T.textPrimary }}>{m.title}</span>
-                      <TagPill color={unlocked ? T.neon : isNext ? T.indigo : T.textMuted} bg={unlocked ? T.neonL : isNext ? T.indigoL : T.surface}>Day {m.day}</TagPill>
-                    </div>
-                    {unlocked && <div style={{ fontSize: 10, fontWeight: 800, color: T.neon, marginBottom: 4, textShadow: shadow.neon }}>✓ UNLOCKED</div>}
-                    {isNext && <div style={{ fontSize: 10, fontWeight: 800, color: T.indigo, marginBottom: 4 }}>{m.day - dayNum} days away</div>}
-                    <div style={{ fontSize: 12, color: T.textSecondary, marginBottom: 6 }}>{m.reward}</div>
-                    <div style={{ fontSize: 11, fontStyle: "italic", color: T.textMuted, borderLeft: `2px solid ${unlocked ? T.neon : T.border}`, paddingLeft: 8 }}>{m.verse}</div>
+          ) : (
+            <>
+              <h1 style={{ fontWeight:900, fontSize:22, color:T.textPrimary, marginBottom:4 }}>{saved.badge.nickname} 🏅</h1>
+              <p style={{ fontSize:13, color:T.textSecondary, marginBottom:20 }}>
+                Your badge levels up every day you stay consistent. Currently <strong style={{color:T.neon}}>{tier.label}</strong>{nextTier ? ` · ${nextTier.min - dayNum > 0 ? nextTier.min - dayNum : 0} days to ${nextTier.label}` : " · Max tier reached"}.
+              </p>
+              <div style={{ display: "flex", justifyContent: "center", marginBottom: 20 }}>
+                <div style={{ background: T.surface, borderRadius: 24, padding: 24, border: `2px solid ${T.neon}50`, boxShadow: shadow.neon, display: "inline-flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
+                  <BadgeCompanion dayNum={dayNum} mood={badgeMood} size={150} auraColor={saved.badge.auraColor} />
+                  <div style={{ textAlign: "center" }}>
+                    <div style={{ fontWeight:800, fontSize:14, color:T.neon, textShadow:shadow.neon }}>{saved.badge.nickname}</div>
+                    <div style={{ fontSize:11, color:T.textMuted }}>{tier.label} Badge · Day {dayNum}</div>
                   </div>
                 </div>
+              </div>
+              <NeonCard style={{ marginBottom: 16 }}>
+                <div style={{fontWeight:800,fontSize:10,color:T.neon,marginBottom:8,letterSpacing:"1px"}}>{saved.badge.nickname.toUpperCase()} SAYS</div>
+                <p style={{ fontSize: 14, fontStyle: "italic", color: T.textPrimary, lineHeight: 1.65, fontFamily: "Georgia,serif", margin: 0 }}>{badgeQuote}</p>
+              </NeonCard>
+              <Card style={{ marginBottom: 16 }}>
+                <div style={{ fontWeight: 800, fontSize: 13, color: T.textPrimary, marginBottom: 10 }}>Growth tiers</div>
+                <div style={{ display: "flex", justifyContent: "space-between" }}>
+                  {BADGE_TIERS.map(t => (
+                    <div key={t.id} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, opacity: dayNum >= t.min ? 1 : 0.4 }}>
+                      <BadgeCompanion dayNum={t.min} mood="happy" size={44} auraColor={saved.badge!.auraColor} />
+                      <div style={{ fontSize: 9, color: dayNum >= t.min ? T.neon : T.textMuted, fontWeight: 700 }}>{t.label}</div>
+                    </div>
+                  ))}
+                </div>
               </Card>
-            );
-          })}
+              <div style={{ fontWeight: 900, fontSize: 17, color: T.textPrimary, marginBottom: 4, marginTop: 8 }}>Milestones</div>
+              <p style={{ fontSize: 12, color: T.textSecondary, marginBottom: 12 }}>Stay consistent. Unlock badges as you progress.</p>
+              {MILESTONES.map((m, i) => {
+                const unlocked = dayNum >= m.day;
+                const isNext   = !unlocked && (i === 0 || dayNum >= MILESTONES[i - 1].day);
+                return (
+                  <Card key={i} style={{ marginBottom: 12, opacity: !unlocked && !isNext ? 0.35 : 1, border: unlocked ? `1.5px solid ${T.neon}60` : isNext ? `1.5px solid ${T.indigo}60` : `1px solid ${T.border}`, boxShadow: unlocked ? shadow.neon : "none" }}>
+                    <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
+                      <div style={{ width: 46, height: 46, borderRadius: 23, background: unlocked ? T.neonL : isNext ? T.indigoL : T.surface, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, flexShrink: 0, boxShadow: unlocked ? shadow.neon : "none" }}>{m.badge}</div>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                          <span style={{ fontWeight: 800, fontSize: 14, color: unlocked ? T.neon : T.textPrimary }}>{m.title}</span>
+                          <TagPill color={unlocked ? T.neon : isNext ? T.indigo : T.textMuted} bg={unlocked ? T.neonL : isNext ? T.indigoL : T.surface}>Day {m.day}</TagPill>
+                        </div>
+                        {unlocked && <div style={{ fontSize: 10, fontWeight: 800, color: T.neon, marginBottom: 4, textShadow: shadow.neon }}>✓ UNLOCKED</div>}
+                        {isNext && <div style={{ fontSize: 10, fontWeight: 800, color: T.indigo, marginBottom: 4 }}>{m.day - dayNum} days away</div>}
+                        <div style={{ fontSize: 12, color: T.textSecondary, marginBottom: 6 }}>{m.reward}</div>
+                        <div style={{ fontSize: 11, fontStyle: "italic", color: T.textMuted, borderLeft: `2px solid ${unlocked ? T.neon : T.border}`, paddingLeft: 8 }}>{m.verse}</div>
+                      </div>
+                    </div>
+                  </Card>
+                );
+              })}
+            </>
+          )}
         </div>
       );
       default: return null;
@@ -1038,6 +1302,7 @@ function AppDashboard({ saved, onReset }: { saved: SavedState; onReset: () => vo
   };
   return (
     <div style={{ height: "100%", display: "flex", flexDirection: "column", background: T.bg }}>
+      <GlobalBadgeStyles />
       <div style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column", minHeight: 0 }}>{renderTab()}</div>
       <div style={{ flexShrink: 0, background: T.surface, borderTop: `1px solid ${T.border}`, paddingBottom: "env(safe-area-inset-bottom,12px)", paddingTop: 10, paddingLeft: 4, paddingRight: 4, display: "flex", justifyContent: "space-around", alignItems: "flex-end", zIndex: 50 }}>
         <NavBtn icon={<Home size={20} />}     label="Home"     active={tab === "home"}     onClick={() => setTab("home")} />
@@ -1046,21 +1311,21 @@ function AppDashboard({ saved, onReset }: { saved: SavedState; onReset: () => vo
           <Dumbbell size={22} color={tab === "today" ? T.bg : T.textSecondary} />
         </button>
         <NavBtn icon={<Users size={20} />}   label="Squad"   active={tab === "squad"}   onClick={() => setTab("squad")} />
-        <NavBtn icon={<Trophy size={20} />}  label="Rewards" active={tab === "rewards"} onClick={() => setTab("rewards")} />
+        <NavBtn icon={<Trophy size={20} />}  label="Badge"   active={tab === "badge"}   onClick={() => setTab("badge")} />
       </div>
-      {showInterstitial && <InterstitialAd onClose={() => setShowInterstitial(false)} />}
     </div>
   );
 }
 
 // ── ROOT APP ──────────────────────────────────────────────────────────────────
 export default function App() {
-  type Screen = "welcome" | "sport" | "injury" | "severity" | "goal" | "dashboard";
+  type Screen = "welcome" | "sport" | "injury" | "severity" | "goal" | "badge" | "dashboard";
   const [saved, setSaved] = useState<SavedState | null>(() => loadState());
   const [screen, setScreen] = useState<Screen>(() => loadState() ? "dashboard" : "welcome");
   const [sport,    setSport]    = useState<typeof SPORTS[0] | undefined>();
   const [injury,   setInjury]   = useState<typeof INJURIES[0] | undefined>();
   const [severity, setSeverity] = useState<typeof SEVERITIES[0] | undefined>();
+  const [goal,     setGoal]     = useState<typeof GOALS_LIST[0] | undefined>();
 
   useEffect(() => {
     const s = loadState();
@@ -1075,18 +1340,18 @@ export default function App() {
     saveState(updated); setSaved(updated);
   }, []);
 
-  const finishOnboarding = (g: typeof GOALS_LIST[0]) => {
-    if (!sport || !injury || !severity) return;
+  const handleBadgeSave = (badge: Badge) => {
+    if (!sport || !injury || !severity || !goal) return;
     const today = todayStr();
     const ns: SavedState = {
-      sportId: sport.id, injuryId: injury.id, severityId: severity.id, goalId: g.id,
+      sportId: sport.id, injuryId: injury.id, severityId: severity.id, goalId: goal.id,
       startDate: today, lastActiveDate: today, streak: 1, streakAlive: true,
-      completedTasks: {}, suppChecked: {}, posts: {}, lastInterstitialDate: "",
+      completedTasks: {}, suppChecked: {}, bodyProfile: null, badge, posts: {},
     };
     saveState(ns); setSaved(ns); setScreen("dashboard");
   };
   const handleReset = () => {
-    clearState(); setSaved(null); setSport(undefined); setInjury(undefined); setSeverity(undefined); setScreen("welcome");
+    clearState(); setSaved(null); setSport(undefined); setInjury(undefined); setSeverity(undefined); setGoal(undefined); setScreen("welcome");
   };
 
   return (
@@ -1095,8 +1360,10 @@ export default function App() {
       {screen === "sport"    && <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column" }}><SportSelect    onNext={s  => { setSport(s);    setScreen("injury");   }} /></div>}
       {screen === "injury"   && <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column" }}><InjurySelect   onNext={i  => { setInjury(i);   setScreen("severity"); }} /></div>}
       {screen === "severity" && <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column" }}><SeveritySelect onNext={sv => { setSeverity(sv); setScreen("goal");     }} /></div>}
-      {screen === "goal"     && <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column" }}><GoalSelect     onNext={g  => finishOnboarding(g)} /></div>}
+      {screen === "goal"     && <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column" }}><GoalSelect     onNext={g  => { setGoal(g);     setScreen("badge");    }} /></div>}
+      {screen === "badge"    && <BadgeSetup onSave={handleBadgeSave} onBack={() => setScreen("goal")} />}
       {screen === "dashboard" && saved && <AppDashboard saved={saved} onReset={handleReset} />}
     </div>
   );
 }
+
