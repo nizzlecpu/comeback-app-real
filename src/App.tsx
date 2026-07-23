@@ -118,10 +118,10 @@ const ELITE_FEATURES = [
   "5 collectible card tiers: Rookie → Silver → Gold → Platinum → Legend",
   "Priority support",
 ];
-function base64urlToBytes(s: string): Uint8Array {
+function base64urlToBytes(s: string): Uint8Array<ArrayBuffer> {
   const b64 = s.replace(/-/g, "+").replace(/_/g, "/") + "===".slice((s.length + 3) % 4);
   const bin = atob(b64);
-  const bytes = new Uint8Array(bin.length);
+  const bytes = new Uint8Array(new ArrayBuffer(bin.length));
   for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
   return bytes;
 }
@@ -729,7 +729,7 @@ function BodyProfileForm({ onSave }: { onSave: (p: BodyProfile) => void }) {
           <div key={key}>
             <label style={{ fontSize: 11, fontWeight: 700, color: T.textMuted, display: "block", marginBottom: 4 }}>{label}</label>
             <input type="number" placeholder={ph}
-              value={(form as Record<string, string>)[key]}
+              value={(form as unknown as Record<string, string>)[key]}
               onChange={e => setForm(f => ({ ...f, [key]: e.target.value }))}
               style={{ width: "100%", padding: "10px", borderRadius: 10, border: `1.5px solid ${T.border}`, background: T.card, color: T.textPrimary, fontSize: 14, fontFamily: "inherit", boxSizing: "border-box", outline: "none" }} />
           </div>
@@ -1669,210 +1669,4 @@ export default function App() {
       {screen === "dashboard" && saved && <AppDashboard saved={saved} onReset={handleReset} onUpgrade={handleUpgradeToElite} />}
     </div>
   );
-#!/usr/bin/env node
-// Comeback Pro/Elite — one script for everything license-related.
-// Replaces the old generate-keypair.mjs / issue-license.mjs / verify-license.mjs
-// trio with a single CLI. Same logic, same file format, same keys/ folder —
-// just one thing to remember instead of three.
-//
-// Usage:
-//   node license.mjs generate
-//   node license.mjs issue --plan pro
-//   node license.mjs issue --plan elite --note "jane@example.com / ch_3Pabc123"
-//   node license.mjs verify "CBK1.xxxx.yyyy"
-//
-// See README.md for the full write-up of how and why this works.
-
-import { readFile, writeFile, appendFile, mkdir } from "node:fs/promises";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
-
-const here = dirname(fileURLToPath(import.meta.url));
-const keysDir = join(here, "keys");
-const publicKeyPath = join(keysDir, "public.jwk.json");
-const privateKeyPath = join(keysDir, "private.jwk.json");
-const logPath = join(here, "issued-licenses.log");
-const { subtle } = globalThis.crypto;
-
-function base64url(bytes) {
-  return Buffer.from(bytes).toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-}
-function base64urlToBytes(s) {
-  const b64 = s.replace(/-/g, "+").replace(/_/g, "/") + "===".slice((s.length + 3) % 4);
-  return new Uint8Array(Buffer.from(b64, "base64"));
-}
-
-// ---- generate --------------------------------------------------------------
-async function cmdGenerate() {
-  await mkdir(keysDir, { recursive: true });
-  const keyPair = await subtle.generateKey({ name: "ECDSA", namedCurve: "P-256" }, true, ["sign", "verify"]);
-  const publicJwk = await subtle.exportKey("jwk", keyPair.publicKey);
-  const privateJwk = await subtle.exportKey("jwk", keyPair.privateKey);
-
-  await writeFile(publicKeyPath, JSON.stringify(publicJwk, null, 2) + "\n");
-  await writeFile(privateKeyPath, JSON.stringify(privateJwk, null, 2) + "\n");
-
-  console.log("New keypair written to license-tools/keys/");
-  console.log("");
-  console.log("Next steps:");
-  console.log("1. Copy the contents of keys/public.jwk.json into the PUBLIC_KEY_JWK");
-  console.log("   constant near the top of comeback-pro.tsx, then rebuild/redeploy the app.");
-  console.log("2. Keep keys/private.jwk.json somewhere safe and private. It's the only");
-  console.log("   thing that can produce a license code the app will accept.");
-  console.log("3. Any license codes issued with the OLD key — including ones in your");
-  console.log("   webhook secrets, if you're running that — stop working the moment you");
-  console.log("   ship the new PUBLIC_KEY_JWK. Only rotate if you have a reason to.");
-}
-
-// ---- issue -------------------------------------------------------------------
-async function cmdIssue(args) {
-  const plan = getFlag(args, "--plan");
-  const note = getFlag(args, "--note") || "";
-  if (plan !== "pro" && plan !== "elite") {
-    console.error('Usage: node license.mjs issue --plan pro|elite [--note "who this is for"]');
-    process.exit(1);
-  }
-
-  const privateJwk = JSON.parse(await readFile(privateKeyPath, "utf8"));
-  const privateKey = await subtle.importKey("jwk", privateJwk, { name: "ECDSA", namedCurve: "P-256" }, false, ["sign"]);
-
-  const payload = {
-    plan,
-    iat: Math.floor(Date.now() / 1000),
-    id: Buffer.from(globalThis.crypto.getRandomValues(new Uint8Array(6))).toString("hex"),
-  };
-  const payloadBytes = new TextEncoder().encode(JSON.stringify(payload));
-  const sigBytes = new Uint8Array(await subtle.sign({ name: "ECDSA", hash: "SHA-256" }, privateKey, payloadBytes));
-  const code = `CBK1.${base64url(payloadBytes)}.${base64url(sigBytes)}`;
-
-  console.log("");
-  console.log(`License code (${plan}):`);
-  console.log(code);
-  console.log("");
-  console.log("Send this exact string to the customer. They paste it into the");
-  console.log('"Already purchased? Enter your license key" box in the app.');
-
-  const logLine = `${new Date().toISOString()}\t${plan}\t${payload.id}\t${note}\t${code}\n`;
-  await appendFile(logPath, logLine);
-  console.log("");
-  console.log("(Logged to license-tools/issued-licenses.log for your own records.)");
-}
-
-// ---- verify -------------------------------------------------------------------
-async function verifyLicenseCode(code) {
-  if (typeof code !== "string" || !code.startsWith("CBK1.")) return { valid: false, reason: "bad-format" };
-  const parts = code.split(".");
-  if (parts.length !== 3) return { valid: false, reason: "bad-format" };
-  const [, payloadPart, sigPart] = parts;
-  let payload;
-  try {
-    payload = JSON.parse(Buffer.from(base64urlToBytes(payloadPart)).toString("utf8"));
-  } catch {
-    return { valid: false, reason: "bad-payload" };
-  }
-  if (payload.plan !== "pro" && payload.plan !== "elite") return { valid: false, reason: "bad-plan" };
-
-  const publicJwk = JSON.parse(await readFile(publicKeyPath, "utf8"));
-  const publicKey = await subtle.importKey("jwk", publicJwk, { name: "ECDSA", namedCurve: "P-256" }, false, ["verify"]);
-  const ok = await subtle.verify(
-    { name: "ECDSA", hash: "SHA-256" }, publicKey, base64urlToBytes(sigPart), base64urlToBytes(payloadPart)
-  );
-  if (!ok) return { valid: false, reason: "bad-signature" };
-  return { valid: true, plan: payload.plan, issuedAt: payload.iat, id: payload.id };
-}
-
-async function cmdVerify(args) {
-  const code = args[0];
-  if (!code) {
-    console.error('Usage: node license.mjs verify "CBK1.xxxx.yyyy"');
-    process.exit(1);
-  }
-  const result = await verifyLicenseCode(code);
-  console.log(result);
-  process.exit(result.valid ? 0 : 2);
-}
-
-// ---- tiny arg helper --------------------------------------------------------
-function getFlag(args, name) {
-  const i = args.indexOf(name);
-  return i === -1 ? undefined : args[i + 1];
-}
-
-// ---- entry point -------------------------------------------------------------
-const [cmd, ...rest] = process.argv.slice(2);
-switch (cmd) {
-  case "generate": await cmdGenerate(); break;
-  case "issue": await cmdIssue(rest); break;
-  case "verify": await cmdVerify(rest); break;
-  default:
-    console.log("Comeback license tools — one script for key management, issuing, and verifying.");
-    console.log("");
-    console.log("Usage:");
-    console.log("  node license.mjs generate                        create a new signing keypair");
-    console.log("  node license.mjs issue --plan pro|elite [--note] sign a new license code");
-    console.log('  node license.mjs verify "CBK1.xxxx.yyyy"          check whether a code is valid');
-    process.exit(cmd ? 1 : 0);
-}
-2026-07-23T16:58:46.265Z	pro	56c5b48a6833	manu (owner) - personal free access	CBK1.eyJwbGFuIjoicHJvIiwiaWF0IjoxNzg0ODI1OTI2LCJpZCI6IjU2YzViNDhhNjgzMyJ9.9zUw4G1m4465El6YkXk70QrsMmAcU1jYzfW0OOmvKrxdBc3l_PwS9SMWoRH-o8gFjrImqde9F1iDP0mrFEcpzQ
-2026-07-23T16:58:46.329Z	elite	55486ab7d043	manu (owner) - personal free access	CBK1.eyJwbGFuIjoiZWxpdGUiLCJpYXQiOjE3ODQ4MjU5MjYsImlkIjoiNTU0ODZhYjdkMDQzIn0.9WRxLyHkWqUQ99pRg3HQlseu0MfltlYRPdRFtqNzD4Fs2mNyvPHD8OlGo8gvN6BnwVN9p_n4Ot4nwlH1lQM-zw
-2026-07-23T17:04:56.734Z	pro	ab189fe09cc2	test: consolidated script	CBK1.eyJwbGFuIjoicHJvIiwiaWF0IjoxNzg0ODI2Mjk2LCJpZCI6ImFiMTg5ZmUwOWNjMiJ9.mK0uc-Zmz7trfZdbzKcWRNcMBkkwuyzTariuuqI6hLJgxJvc03hbmTbaIOEuUQYl6qCbigCNoiD9JuydoIcBaQ
-2026-07-23T17:04:56.856Z	elite	da0c8fb08069	test: consolidated script	CBK1.eyJwbGFuIjoiZWxpdGUiLCJpYXQiOjE3ODQ4MjYyOTYsImlkIjoiZGEwYzhmYjA4MDY5In0.K5ezWroCRRrXONd2Hlbx_12hUJxgnEoYG7e3bspeXtvBlxYArHwokckIeKTIb64oOyJgkNq81yiG7HA9LLo3Nw
-2026-07-23T17:06:27.775Z	pro	4727f5ddf74b	final regression test	CBK1.eyJwbGFuIjoicHJvIiwiaWF0IjoxNzg0ODI2Mzg3LCJpZCI6IjQ3MjdmNWRkZjc0YiJ9.qUbj_NkSlMLyRxcqBlLnEiWevJtcbQrWNF1GjwQPwdxXH-jvpFm5g8FWK7RvJku5twNRzPMViRwG9OZVELNhXA
-name = "comeback-license-webhook"
-main = "src/index.js"
-compatibility_date = "2026-07-23"
-
-# Non-secret configuration. Fill these in — see DEPLOY.md for how to find
-# each value. None of these are sensitive; the actual secrets (API keys,
-# the private signing key) are set separately with `wrangler secret put`
-# and never live in this file or in source control.
-[vars]
-PRICE_ID_PRO = "price_REPLACE_ME"
-PRICE_ID_ELITE = "price_REPLACE_ME"
-FROM_EMAIL = "license@yourdomain.com"
-SELLER_NOTIFY_EMAIL = "you@yourdomain.com"
-
-# Create with: wrangler kv:namespace create license_kv
-# Then paste the id it prints below.
-[[kv_namespaces]]
-binding = "LICENSE_KV"
-id = "REPLACE_ME"
-{
-  "name": "comeback-license-webhook",
-  "version": "1.0.0",
-  "private": true,
-  "type": "module",
-  "description": "Cloudflare Worker: Stripe checkout.session.completed -> sign Comeback license code -> email it",
-  "scripts": {
-    "dev": "wrangler dev",
-    "deploy": "wrangler deploy",
-    "secret:stripe-key": "wrangler secret put STRIPE_SECRET_KEY",
-    "secret:stripe-webhook": "wrangler secret put STRIPE_WEBHOOK_SECRET",
-    "secret:license-key": "wrangler secret put LICENSE_PRIVATE_KEY_JWK",
-    "secret:resend-key": "wrangler secret put RESEND_API_KEY"
-  },
-  "devDependencies": {
-    "wrangler": "^3.90.0"
-  }
-}
-{
-  "key_ops": [
-    "verify"
-  ],
-  "ext": true,
-  "kty": "EC",
-  "x": "rxweEwBKStDtmPACeGZTeem3DosMdCrPzxvEBP-W3yQ",
-  "y": "NqzZGAzX23lYoIijwn3xzMqOYfruDy_wTveb-3eF8u8",
-  "crv": "P-256"
-}
-{
-  "key_ops": [
-    "sign"
-  ],
-  "ext": true,
-  "kty": "EC",
-  "x": "rxweEwBKStDtmPACeGZTeem3DosMdCrPzxvEBP-W3yQ",
-  "y": "NqzZGAzX23lYoIijwn3xzMqOYfruDy_wTveb-3eF8u8",
-  "crv": "P-256",
-  "d": "gn_dYVk5oRhxH8KSWZ6Uf-Yf1YKeSLV3j41pih-8hJs"
 }
