@@ -1,13 +1,17 @@
 import React, { useState, useEffect, useCallback, ReactNode } from "react";
-import { Check, ChevronRight, Trophy, Users, Home, BookOpen, Dumbbell, RotateCcw, Heart, MessageCircle, Send, ArrowLeft } from "lucide-react";
+import { Check, ChevronRight, Trophy, Users, Home, BookOpen, Dumbbell, RotateCcw, Heart, MessageCircle, Send, ArrowLeft, Lock, Crown } from "lucide-react";
 
 // ============================================================================
-// COMEBACK — PRO (Full Unlocked Edition)
-// Single standalone paid app. No ads, no plan picker, no paywalls — every
-// feature is unlocked from the first session: personalised macros, the full
-// supplement + nutrition system, squad, milestones, and the premium
-// Animated Trophy/Badge Companion that levels up baby → bronze → silver →
-// gold → diamond as the user's streak builds.
+// COMEBACK — PRO/ELITE (Paid Edition)
+// Single standalone paid app, gated by a real Stripe checkout + cryptographic
+// license-key verification (see license-tools/ for the issuing CLI). Two
+// tiers: Pro ($9.99/mo) unlocks the full protocol, macros, supplements and
+// squad with zero ads. Elite ($28.99/mo) adds the Nike/Swoosh-style animated
+// Trading Card — an athlete-silhouette stats card that levels up Rookie →
+// Silver → Gold → Platinum → Legend as the user's streak builds. The license
+// signature is re-verified on every load, so flipping a `plan` flag in
+// localStorage or devtools cannot unlock anything it wasn't legitimately
+// issued for.
 // ============================================================================
 
 // ── THEME ─────────────────────────────────────────────────────────────────────
@@ -44,8 +48,8 @@ interface BodyProfile {
   gender: string;
   goal: string;
 }
-interface Badge {
-  auraColor: string;
+interface CardProfile {
+  accentColor: string;
   nickname: string;
 }
 interface SavedState {
@@ -60,8 +64,10 @@ interface SavedState {
   completedTasks: Record<string, boolean[]>;
   suppChecked: Record<string, boolean[]>;
   bodyProfile: BodyProfile | null;
-  badge: Badge | null;
+  card: CardProfile | null;
   posts: Record<string, Post[]>;
+  plan: "pro" | "elite";
+  licenseCode: string;
 }
 function todayStr(): string {
   return new Date().toISOString().slice(0, 10);
@@ -80,6 +86,74 @@ function saveState(s: SavedState): void {
 }
 function clearState(): void {
   try { localStorage.removeItem(STORAGE_KEY); } catch {}
+}
+
+// ── LICENSING (Stripe checkout + ECDSA license-key verification) ──────────────
+// See license-tools/README.md for the full write-up. Short version: Stripe
+// Payment Links collect the money but never talk to this app directly (no
+// backend). After a sale, the seller runs license-tools/issue-license.mjs,
+// which signs {plan, iat, id} with a private key only the seller holds. This
+// app can only VERIFY that signature with the public half embedded below —
+// it has no way to forge a code. Every load re-verifies the stored code, so
+// editing localStorage or flipping `plan` in devtools cannot unlock a tier
+// the user was never issued a valid signature for.
+const PLAN_PRO_URL = "https://buy.stripe.com/5kQ3cu5P36NtcWh1ZC67S00";
+const PLAN_ELITE_URL = "https://buy.stripe.com/dRm9AS91ffjZbSd1ZC67S01";
+const PUBLIC_KEY_JWK: JsonWebKey = {
+  key_ops: ["verify"], ext: true, kty: "EC",
+  x: "rxweEwBKStDtmPACeGZTeem3DosMdCrPzxvEBP-W3yQ",
+  y: "NqzZGAzX23lYoIijwn3xzMqOYfruDy_wTveb-3eF8u8",
+  crv: "P-256",
+} as JsonWebKey;
+const PRO_FEATURES = [
+  "Full personalised recovery protocol — every phase, every sport",
+  "Daily task tracking with streaks and milestones",
+  "Personalised nutrition macros and supplement schedule",
+  "Sport squad community — post, reply, connect",
+  "Zero ads, ever",
+];
+const ELITE_FEATURES = [
+  "Everything in Pro, plus:",
+  "Nike/Swoosh-style animated Trading Card — your athlete silhouette, sport icon and streak number on a premium holographic card",
+  "5 collectible card tiers: Rookie → Silver → Gold → Platinum → Legend",
+  "Priority support",
+];
+function base64urlToBytes(s: string): Uint8Array {
+  const b64 = s.replace(/-/g, "+").replace(/_/g, "/") + "===".slice((s.length + 3) % 4);
+  const bin = atob(b64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return bytes;
+}
+type LicenseResult =
+  | { valid: true; plan: "pro" | "elite"; issuedAt: number; id: string }
+  | { valid: false; reason: string };
+async function verifyLicenseCode(code: string): Promise<LicenseResult> {
+  if (typeof code !== "string" || !code.startsWith("CBK1.")) return { valid: false, reason: "bad-format" };
+  const parts = code.trim().split(".");
+  if (parts.length !== 3) return { valid: false, reason: "bad-format" };
+  const [, payloadPart, sigPart] = parts;
+  let payload: any;
+  try {
+    payload = JSON.parse(new TextDecoder().decode(base64urlToBytes(payloadPart)));
+  } catch {
+    return { valid: false, reason: "bad-payload" };
+  }
+  if (payload.plan !== "pro" && payload.plan !== "elite") return { valid: false, reason: "bad-plan" };
+  try {
+    const subtle: SubtleCrypto = (globalThis as any).crypto.subtle;
+    const publicKey = await subtle.importKey("jwk", PUBLIC_KEY_JWK, { name: "ECDSA", namedCurve: "P-256" }, false, ["verify"]);
+    const ok = await subtle.verify(
+      { name: "ECDSA", hash: "SHA-256" } as EcdsaParams,
+      publicKey,
+      base64urlToBytes(sigPart),
+      base64urlToBytes(payloadPart)
+    );
+    if (!ok) return { valid: false, reason: "bad-signature" };
+    return { valid: true, plan: payload.plan, issuedAt: payload.iat, id: payload.id };
+  } catch {
+    return { valid: false, reason: "verify-error" };
+  }
 }
 
 // ── DATA ──────────────────────────────────────────────────────────────────────
@@ -495,37 +569,37 @@ function NavBtn({ icon, label, active, onClick }: { icon: ReactNode; label: stri
     </button>
   );
 }
-function GlobalBadgeStyles() {
+function GlobalCardStyles() {
   return (
     <style>{`
-      @keyframes badgePulse { 0%,100% { opacity:0.16; transform:scale(1); } 50% { opacity:0.32; transform:scale(1.08); } }
-      @keyframes badgeSpin { from { transform:rotate(0deg); } to { transform:rotate(360deg); } }
-      @keyframes sparkleFloat { 0% { opacity:0; transform:translateY(0) scale(0.5); } 40% { opacity:1; transform:translateY(-8px) scale(1); } 100% { opacity:0; transform:translateY(-16px) scale(0.5); } }
+      @keyframes cardGlowPulse { 0%,100% { opacity:0.16; transform:scale(1); } 50% { opacity:0.32; transform:scale(1.08); } }
+      @keyframes holoSweep { 0% { transform:translateX(-130%) rotate(18deg); } 100% { transform:translateX(130%) rotate(18deg); } }
+      @keyframes cardSparkle { 0% { opacity:0; transform:translateY(0) scale(0.5); } 40% { opacity:1; transform:translateY(-8px) scale(1); } 100% { opacity:0; transform:translateY(-16px) scale(0.5); } }
     `}</style>
   );
 }
 
-// ── BADGE COMPANION DATA ──────────────────────────────────────────────────────
-// Tiers: baby(day1-6) -> bronze(7-20) -> silver(21-59) -> gold(60-89) -> diamond(90+)
-const BADGE_TIERS = [
-  { id:"baby",    label:"Rookie",  min:1,  base:"#D5D8E3", edge:"#8E93A6", glow:"#AEB3C4", emblem:"star" as const },
-  { id:"bronze",  label:"Bronze",  min:7,  base:"#E3A45B", edge:"#8B4A18", glow:"#CD7F32", emblem:"star" as const },
-  { id:"silver",  label:"Silver",  min:21, base:"#EDEFF5", edge:"#9AA0B4", glow:"#D6DAE6", emblem:"star" as const },
-  { id:"gold",    label:"Gold",    min:60, base:"#FFDE7A", edge:"#B8860B", glow:"#FFD700", emblem:"crown" as const },
-  { id:"diamond", label:"Diamond", min:90, base:"#BFFFF3", edge:"#39FF14", glow:"#7DFFEA", emblem:"diamond" as const },
+// ── TRADING CARD DATA (Elite-exclusive) ────────────────────────────────────────
+// Tiers: rookie(day1-6) -> silver(7-20) -> gold(21-59) -> platinum(60-89) -> legend(90+)
+const CARD_TIERS = [
+  { id:"rookie",   label:"Rookie",   min:1,  primary:"#D5D8E3", secondary:"#8E93A6", glow:"#AEB3C4" },
+  { id:"silver",   label:"Silver",   min:7,  primary:"#EDEFF5", secondary:"#9AA0B4", glow:"#D6DAE6" },
+  { id:"gold",     label:"Gold",     min:21, primary:"#FFDE7A", secondary:"#B8860B", glow:"#FFD700" },
+  { id:"platinum", label:"Platinum", min:60, primary:"#EAF6FF", secondary:"#38BDF8", glow:"#9FE6FF" },
+  { id:"legend",   label:"Legend",   min:90, primary:"#1A1A22", secondary:"#FFD700", glow:"#39FF14" },
 ];
-function getBadgeTier(dayNum: number) {
-  let t = BADGE_TIERS[0];
-  for (const b of BADGE_TIERS) { if (dayNum >= b.min) t = b; }
+function getCardTier(dayNum: number) {
+  let t = CARD_TIERS[0];
+  for (const c of CARD_TIERS) { if (dayNum >= c.min) t = c; }
   return t;
 }
-function getNextBadgeTier(dayNum: number) {
-  const cur = getBadgeTier(dayNum);
-  const idx = BADGE_TIERS.indexOf(cur);
-  return idx < BADGE_TIERS.length - 1 ? BADGE_TIERS[idx + 1] : null;
+function getNextCardTier(dayNum: number) {
+  const cur = getCardTier(dayNum);
+  const idx = CARD_TIERS.indexOf(cur);
+  return idx < CARD_TIERS.length - 1 ? CARD_TIERS[idx + 1] : null;
 }
-const BADGE_AURA_COLORS = ["#39FF14","#FF3B3B","#6366F1","#F59E0B","#EC4899","#38BDF8","#A855F7","#10B981"];
-const BADGE_QUOTES: Record<string,string[]> = {
+const CARD_ACCENT_COLORS = ["#39FF14","#FF3B3B","#6366F1","#F59E0B","#EC4899","#38BDF8","#A855F7","#10B981"];
+const CARD_QUOTES: Record<string,string[]> = {
   streak:[
     "You showed up again. Your tissue is literally rebuilding right now because of YOUR consistency.",
     "Day after day. That consistency is exactly what separates good recoveries from great ones.",
@@ -553,70 +627,92 @@ const BADGE_QUOTES: Record<string,string[]> = {
     "Morning! Remember why you started. That reason is bigger than today's discomfort.",
   ],
 };
-const STAR_PATH = "M0,-46 L13,-14 L46,-14 L19,7 L28,42 L0,20 L-28,42 L-19,7 L-46,-14 L-13,-14 Z";
-const DIAMOND_PATH = "M0,-46 L32,-8 L0,50 L-32,-8 Z";
-const DIAMOND_FACETS = ["M0,-46 L0,50", "M-32,-8 L32,-8", "M-16,-27 L0,-46 L16,-27", "M-16,-27 L-32,-8", "M16,-27 L32,-8"];
-const CROWN_PATH = "M-22,8 L-22,-8 L-11,2 L0,-16 L11,2 L22,-8 L22,8 Z";
-const SPARKLE_OFFSETS = [
-  { x: -1.1, y: -0.9 }, { x: 1.15, y: -0.6 }, { x: -0.8, y: 1.0 }, { x: 1.0, y: 0.95 },
-];
 
-// ── BADGE COMPANION (SVG) ─────────────────────────────────────────────────────
-function BadgeCompanion({ dayNum, mood = "happy", size = 90, auraColor = T.neon }: {
-  dayNum: number; mood?: "happy"|"excited"|"neutral"|"sad"; size?: number; auraColor?: string;
+// ── STATS CARD — Nike/Swoosh Trading Card (SVG + CSS, Elite-exclusive) ────────
+function StatsCard({ dayNum, streak, mood = "happy", size = 150, accentColor = T.neon, sportIcon = "🏆" }: {
+  dayNum: number; streak: number; mood?: "happy"|"excited"|"neutral"|"sad"; size?: number; accentColor?: string; sportIcon?: string;
 }) {
-  const tier = getBadgeTier(dayNum);
-  const s = size;
-  const cx = s * 0.5;
-  const cy = s * 0.44;
-  const outerR = s * 0.33;
-  const gradId = `badgeGrad-${tier.id}-${size}`;
+  const tier = getCardTier(dayNum);
+  const w = size;
+  const h = Math.round(size * 1.42);
   const isSad = mood === "sad";
-  const isNeutral = mood === "neutral";
-  const showGlow = !isSad && !isNeutral;
-  const showShine = (tier.id === "gold" || tier.id === "diamond") && !isSad && !isNeutral;
-  const showSparkles = mood === "excited";
-  const ribbonLeft = `${cx-outerR*0.55},${cy+outerR*0.55} ${cx-outerR*0.15},${cy+outerR*0.55} ${cx-outerR*0.05},${s*0.97} ${cx-outerR*0.65},${s*0.86}`;
-  const ribbonRight = `${cx+outerR*0.55},${cy+outerR*0.55} ${cx+outerR*0.15},${cy+outerR*0.55} ${cx+outerR*0.05},${s*0.97} ${cx+outerR*0.65},${s*0.86}`;
+  const isExcited = mood === "excited";
+  const dark = tier.id === "legend";
+  const silhouette = dark ? "#000000" : "#171722";
   return (
-    <svg width={s} height={s} viewBox={`0 0 ${s} ${s}`} style={isSad ? { filter: "grayscale(0.55) brightness(0.8)" } : {}}>
-      <defs>
-        <radialGradient id={gradId} cx="35%" cy="30%" r="75%">
-          <stop offset="0%" stopColor="#FFFFFF" stopOpacity="0.9" />
-          <stop offset="35%" stopColor={tier.base} />
-          <stop offset="100%" stopColor={tier.edge} />
-        </radialGradient>
-      </defs>
-      <polygon points={ribbonLeft} fill={tier.edge} opacity={0.9} />
-      <polygon points={ribbonRight} fill={tier.edge} opacity={0.9} />
-      {showGlow && (
-        <circle cx={cx} cy={cy} r={outerR*1.35} fill={auraColor} opacity={0.18}
-          style={{ transformOrigin: `${cx}px ${cy}px`, animation: `badgePulse ${mood==="excited" ? "1.1s" : "2.6s"} ease-in-out infinite` }} />
+    <div style={{
+      width: w, height: h, borderRadius: w * 0.09, position: "relative", overflow: "hidden",
+      background: `linear-gradient(155deg, ${tier.primary} 0%, ${tier.secondary} 55%, ${tier.primary} 100%)`,
+      border: `${Math.max(2, w * 0.016)}px solid ${tier.secondary}`,
+      boxShadow: `0 0 ${w*0.18}px ${tier.glow}55, 0 8px 20px rgba(0,0,0,0.5)`,
+      filter: isSad ? "grayscale(0.6) brightness(0.78)" : "none",
+    }}>
+      {/* diagonal swoosh accent band */}
+      <div style={{
+        position: "absolute", left: "-20%", top: "38%", width: "140%", height: w * 0.22,
+        background: accentColor, opacity: 0.9, transform: "rotate(-10deg)",
+        boxShadow: `0 0 ${w*0.1}px ${accentColor}90`,
+      }} />
+      <div style={{
+        position: "absolute", left: "-20%", top: "38%", width: "140%", height: w * 0.22,
+        transform: "rotate(-10deg)", overflow: "hidden",
+      }}>
+        {/* holographic sweep */}
+        <div style={{
+          position: "absolute", top: 0, left: 0, width: "40%", height: "100%",
+          background: "linear-gradient(100deg, transparent, rgba(255,255,255,0.55), transparent)",
+          animation: `holoSweep ${isExcited ? "1.6s" : "3.2s"} linear infinite`,
+        }} />
+      </div>
+      {/* rank pill */}
+      <div style={{
+        position: "absolute", top: w * 0.06, right: w * 0.06, fontSize: Math.max(8, w * 0.07),
+        fontWeight: 900, letterSpacing: "1px", color: dark ? tier.secondary : "#1A1A22",
+        background: "rgba(255,255,255,0.35)", borderRadius: 20, padding: "3px 8px", textTransform: "uppercase",
+      }}>{tier.label}</div>
+      {/* sport icon badge */}
+      <div style={{
+        position: "absolute", top: w * 0.06, left: w * 0.06, width: w * 0.16, height: w * 0.16,
+        borderRadius: "50%", background: "rgba(0,0,0,0.35)", display: "flex", alignItems: "center",
+        justifyContent: "center", fontSize: w * 0.09,
+      }}>{sportIcon}</div>
+      {isExcited && (
+        <div style={{
+          position: "absolute", top: w * 0.02, left: -w * 0.32, width: w * 0.85, textAlign: "center",
+          transform: "rotate(-45deg)", background: T.neon, color: T.bg, fontWeight: 900,
+          fontSize: Math.max(7, w * 0.055), letterSpacing: "0.5px", padding: "3px 0", boxShadow: shadow.neon,
+        }}>PERFECT DAY</div>
       )}
-      <circle cx={cx} cy={cy} r={outerR*1.12} fill="none" stroke={tier.glow} strokeWidth={s*0.015} opacity={0.5} />
-      <circle cx={cx} cy={cy} r={outerR} fill={`url(#${gradId})`} stroke={tier.edge} strokeWidth={s*0.022} />
-      <circle cx={cx} cy={cy} r={outerR*0.8} fill="none" stroke="white" strokeOpacity={0.3} strokeWidth={s*0.008} />
-      {showShine && (
-        <g style={{ transformOrigin: `${cx}px ${cy}px`, animation: "badgeSpin 5s linear infinite" }}>
-          <ellipse cx={cx} cy={cy - outerR*0.5} rx={outerR*0.5} ry={outerR*0.18} fill="white" opacity={0.35} />
+      {/* athlete silhouette (geometric primitives) */}
+      <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} style={{ position: "absolute", left: 0, top: 0 }}>
+        <g transform={`translate(${w*0.5},${h*0.28})`} fill={silhouette} opacity={0.92}>
+          <circle cx={0} cy={0} r={w*0.09} />
+          <path d={`M ${-w*0.16},${h*0.08} Q 0,${-h*0.02} ${w*0.16},${h*0.08} L ${w*0.13},${h*0.30} Q 0,${h*0.34} ${-w*0.13},${h*0.30} Z`} />
+          <rect x={-w*0.30} y={h*0.06} width={w*0.10} height={h*0.20} rx={w*0.04} transform={`rotate(18 ${-w*0.25} ${h*0.10})`} />
+          <rect x={w*0.20} y={h*0.06} width={w*0.10} height={h*0.20} rx={w*0.04} transform={`rotate(-18 ${w*0.25} ${h*0.10})`} />
+          <rect x={-w*0.13} y={h*0.32} width={w*0.11} height={h*0.24} rx={w*0.045} />
+          <rect x={w*0.02} y={h*0.32} width={w*0.11} height={h*0.24} rx={w*0.045} />
         </g>
-      )}
-      {tier.emblem === "crown" && (
-        <path d={CROWN_PATH} transform={`translate(${cx},${cy - outerR*0.85}) scale(${outerR/60})`} fill={tier.glow} stroke={tier.edge} strokeWidth={2} />
-      )}
-      {tier.emblem === "diamond" ? (
-        <g transform={`translate(${cx},${cy}) scale(${outerR/60})`}>
-          <path d={DIAMOND_PATH} fill="white" opacity={0.92} />
-          {DIAMOND_FACETS.map((d, i) => <path key={i} d={d} stroke={tier.edge} strokeWidth={2} opacity={0.4} />)}
-        </g>
-      ) : (
-        <path d={STAR_PATH} transform={`translate(${cx},${cy}) scale(${outerR/60})`} fill="white" opacity={0.92} />
-      )}
-      {showSparkles && SPARKLE_OFFSETS.map((o, i) => (
-        <circle key={i} cx={cx + o.x*outerR} cy={cy + o.y*outerR} r={s*0.022} fill={tier.glow}
-          style={{ animation: `sparkleFloat 1.6s ease-in-out ${i*0.2}s infinite` }} />
-      ))}
-    </svg>
+      </svg>
+      {/* hero streak stat */}
+      <div style={{
+        position: "absolute", left: 0, right: 0, top: h * 0.56, textAlign: "center",
+      }}>
+        <div style={{
+          fontWeight: 900, fontSize: w * 0.42, lineHeight: 1, color: accentColor,
+          textShadow: `0 0 ${w*0.08}px ${accentColor}90, 0 2px 4px rgba(0,0,0,0.5)`,
+        }}>{streak}</div>
+        <div style={{ fontSize: Math.max(8, w*0.06), fontWeight: 800, letterSpacing: "2px", color: dark ? "#EDEDF5" : "#2A2A38", textTransform: "uppercase", marginTop: 2 }}>Day Streak</div>
+      </div>
+      {/* bottom nameplate bar */}
+      <div style={{
+        position: "absolute", left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.45)",
+        padding: `${h*0.02}px ${w*0.08}px`, display: "flex", justifyContent: "space-between", alignItems: "center",
+      }}>
+        <span style={{ fontSize: Math.max(8, w*0.062), fontWeight: 800, color: "#F0F0F8", letterSpacing: "0.5px" }}>DAY {dayNum}</span>
+        <span style={{ fontSize: Math.max(8, w*0.062), fontWeight: 800, color: accentColor, letterSpacing: "0.5px" }}>COMEBACK</span>
+      </div>
+    </div>
   );
 }
 
@@ -682,11 +778,11 @@ function Welcome({ onNext }: { onNext: () => void }) {
             Your comeback<br />starts <span style={{ color: T.neon, textShadow: shadow.neon }}>today.</span>
           </h1>
           <p style={{ fontSize: 15, color: T.textSecondary, lineHeight: 1.6, maxWidth: 300, margin: "0 auto" }}>
-            Science-backed recovery. Personalised nutrition. A trophy companion that grows with you.
+            Science-backed recovery. Personalised nutrition. Choose Pro or go Elite for your own animated Trading Card.
           </p>
         </div>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "center", marginBottom: 32 }}>
-          {["🏆 Pro protocols", "📿 Daily faith", "🧪 Personalised macros", "🏅 Badge Companion", "📅 Real tracking"].map((f, i) => (
+          {["🏆 Pro protocols", "📿 Daily faith", "🧪 Personalised macros", "💳 Elite Trading Card", "📅 Real tracking"].map((f, i) => (
             <div key={i} style={{
               fontSize: 11, fontWeight: 700, color: T.neon, background: T.neonL,
               borderRadius: 12, padding: "6px 12px", border: `1px solid ${T.neon}30`,
@@ -695,7 +791,7 @@ function Welcome({ onNext }: { onNext: () => void }) {
         </div>
       </div>
       <PrimaryBtn onClick={onNext}>Build My Recovery Plan →</PrimaryBtn>
-      <p style={{ textAlign: "center", fontSize: 11, color: T.textMuted, marginTop: 12 }}>Everything unlocked · No ads · Progress saved automatically</p>
+      <p style={{ textAlign: "center", fontSize: 11, color: T.textMuted, marginTop: 12 }}>Pro $9.99/mo · Elite $28.99/mo · No ads either way</p>
     </div>
   );
 }
@@ -703,7 +799,7 @@ function SportSelect({ onNext }: { onNext: (s: typeof SPORTS[0]) => void }) {
   return (
     <div style={{ minHeight: "100%", display: "flex", flexDirection: "column", background: T.bg }}>
       <div style={{ padding: "20px 20px 0", position: "sticky", top: 0, background: T.bg, zIndex: 10 }}>
-        <Logo size={22} /><StepBar total={5} current={1} />
+        <Logo size={22} /><StepBar total={6} current={1} />
         <h2 style={{ fontWeight: 900, fontSize: 22, color: T.textPrimary, marginBottom: 4 }}>What is your sport?</h2>
         <p style={{ fontSize: 13, color: T.textSecondary, marginBottom: 16 }}>You will join a squad of athletes from your sport.</p>
       </div>
@@ -731,7 +827,7 @@ function InjurySelect({ onNext }: { onNext: (inj: typeof INJURIES[0]) => void })
   return (
     <div style={{ minHeight: "100%", display: "flex", flexDirection: "column", background: T.bg }}>
       <div style={{ padding: "20px 20px 0", position: "sticky", top: 0, background: T.bg, zIndex: 10 }}>
-        <Logo size={22} /><StepBar total={5} current={2} />
+        <Logo size={22} /><StepBar total={6} current={2} />
         <h2 style={{ fontWeight: 900, fontSize: 22, color: T.textPrimary, marginBottom: 4 }}>What is your injury?</h2>
         <p style={{ fontSize: 13, color: T.textSecondary, marginBottom: 16 }}>Select closest match — we fine-tune by severity next.</p>
       </div>
@@ -754,7 +850,7 @@ function SeveritySelect({ onNext }: { onNext: (sv: typeof SEVERITIES[0]) => void
   return (
     <div style={{ minHeight: "100%", display: "flex", flexDirection: "column", background: T.bg }}>
       <div style={{ padding: "20px 20px 0", position: "sticky", top: 0, background: T.bg, zIndex: 10 }}>
-        <Logo size={22} /><StepBar total={5} current={3} />
+        <Logo size={22} /><StepBar total={6} current={3} />
         <h2 style={{ fontWeight: 900, fontSize: 22, color: T.textPrimary, marginBottom: 4 }}>How severe is it?</h2>
         <p style={{ fontSize: 13, color: T.textSecondary, marginBottom: 16 }}>This determines your protocol intensity.</p>
       </div>
@@ -777,7 +873,7 @@ function GoalSelect({ onNext }: { onNext: (g: typeof GOALS_LIST[0]) => void }) {
   return (
     <div style={{ minHeight: "100%", display: "flex", flexDirection: "column", background: T.bg }}>
       <div style={{ padding: "20px 20px 0", position: "sticky", top: 0, background: T.bg, zIndex: 10 }}>
-        <Logo size={22} /><StepBar total={5} current={4} />
+        <Logo size={22} /><StepBar total={6} current={4} />
         <h2 style={{ fontWeight: 900, fontSize: 22, color: T.textPrimary, marginBottom: 4 }}>What is your goal?</h2>
         <p style={{ fontSize: 13, color: T.textSecondary, marginBottom: 16 }}>Shapes your daily task emphasis and macros.</p>
       </div>
@@ -797,9 +893,100 @@ function GoalSelect({ onNext }: { onNext: (g: typeof GOALS_LIST[0]) => void }) {
   );
 }
 
-// ── BADGE SETUP (pick aura color + nickname) ─────────────────────────────────
-function BadgeSetup({ onSave, onBack }: { onSave: (b: Badge) => void; onBack: () => void }) {
-  const [auraColor, setAuraColor] = useState(BADGE_AURA_COLORS[0]);
+// ── PAYWALL (Stripe checkout + license redemption) ────────────────────────────
+function Paywall({ onUnlock, onBack }: { onUnlock: (plan: "pro" | "elite", code: string) => void; onBack: () => void }) {
+  const [code, setCode] = useState("");
+  const [checking, setChecking] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleRedeem = async () => {
+    if (!code.trim()) return;
+    setChecking(true); setError(null);
+    const result = await verifyLicenseCode(code.trim());
+    setChecking(false);
+    if (!result.valid) {
+      setError(
+        result.reason === "bad-format" ? "That doesn't look like a Comeback license code."
+        : result.reason === "bad-signature" ? "That code isn't valid — double-check for typos."
+        : "That code isn't valid."
+      );
+      return;
+    }
+    onUnlock(result.plan, code.trim());
+  };
+
+  return (
+    <div style={{ minHeight: "100%", background: T.bg, display: "flex", flexDirection: "column" }}>
+      <div style={{ padding: "20px 20px 0", position: "sticky", top: 0, background: T.bg, zIndex: 10 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+          <button onClick={onBack} style={{ background: "none", border: "none", cursor: "pointer", color: T.textSecondary, padding: 4 }}>
+            <ArrowLeft size={20} />
+          </button>
+          <Logo size={22} />
+        </div>
+        <StepBar total={6} current={5} />
+        <h2 style={{ fontWeight: 900, fontSize: 22, color: T.textPrimary, marginBottom: 4 }}>Choose your plan</h2>
+        <p style={{ fontSize: 13, color: T.textSecondary, marginBottom: 12 }}>Secure checkout via Stripe. Cancel anytime.</p>
+      </div>
+      <div style={{ flex: 1, overflowY: "auto", padding: "0 20px 32px" }}>
+        <div style={{ background: T.card, border: `1.5px solid ${T.border}`, borderRadius: 18, padding: "18px 16px", marginBottom: 14, boxShadow: shadow.sm }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
+            <span style={{ fontWeight: 900, fontSize: 17, color: T.textPrimary }}>Pro</span>
+            <span style={{ fontWeight: 900, fontSize: 20, color: T.neon }}>$9.99<span style={{ fontSize: 11, color: T.textMuted, fontWeight: 600 }}>/mo</span></span>
+          </div>
+          <ul style={{ margin: "10px 0 14px", padding: 0, listStyle: "none" }}>
+            {PRO_FEATURES.map((f, i) => (
+              <li key={i} style={{ display: "flex", gap: 8, alignItems: "flex-start", fontSize: 12, color: T.textSecondary, marginBottom: 6, lineHeight: 1.4 }}>
+                <Check size={13} color={T.neon} style={{ flexShrink: 0, marginTop: 2 }} /> <span>{f}</span>
+              </li>
+            ))}
+          </ul>
+          <button onClick={() => window.open(PLAN_PRO_URL, "_blank")}
+            style={{ width: "100%", padding: "13px", borderRadius: 12, background: T.textPrimary, color: T.bg, fontWeight: 800, fontSize: 14, border: "none", cursor: "pointer" }}>
+            Get Pro →
+          </button>
+        </div>
+        <div style={{ background: "linear-gradient(160deg,#16161E,#1B1420)", border: `1.5px solid ${T.neon}60`, borderRadius: 18, padding: "18px 16px", marginBottom: 20, boxShadow: shadow.neon }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
+            <span style={{ display: "flex", alignItems: "center", gap: 6, fontWeight: 900, fontSize: 17, color: T.textPrimary }}>
+              <Crown size={16} color="#FFD700" /> Elite
+            </span>
+            <span style={{ fontWeight: 900, fontSize: 20, color: T.neon }}>$28.99<span style={{ fontSize: 11, color: T.textMuted, fontWeight: 600 }}>/mo</span></span>
+          </div>
+          <ul style={{ margin: "10px 0 14px", padding: 0, listStyle: "none" }}>
+            {ELITE_FEATURES.map((f, i) => (
+              <li key={i} style={{ display: "flex", gap: 8, alignItems: "flex-start", fontSize: 12, color: i === 0 ? T.textMuted : T.textSecondary, fontWeight: i === 0 ? 700 : 400, marginBottom: 6, lineHeight: 1.4 }}>
+                {i !== 0 && <Check size={13} color={T.neon} style={{ flexShrink: 0, marginTop: 2 }} />} <span>{f}</span>
+              </li>
+            ))}
+          </ul>
+          <button onClick={() => window.open(PLAN_ELITE_URL, "_blank")}
+            style={{ width: "100%", padding: "13px", borderRadius: 12, background: T.neon, color: T.bg, fontWeight: 800, fontSize: 14, border: "none", cursor: "pointer", boxShadow: shadow.neon }}>
+            Get Elite →
+          </button>
+        </div>
+        <div style={{ background: T.surface, borderRadius: 16, padding: 16, border: `1px solid ${T.border}` }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
+            <Lock size={13} color={T.textMuted} />
+            <span style={{ fontWeight: 800, fontSize: 12, color: T.textPrimary }}>Already purchased?</span>
+          </div>
+          <p style={{ fontSize: 11, color: T.textMuted, marginBottom: 10, lineHeight: 1.5 }}>Enter the license key you received after checkout to unlock the app on this device.</p>
+          <input value={code} onChange={e => setCode(e.target.value)} placeholder="CBK1.xxxxx.yyyyy"
+            style={{ width: "100%", padding: "11px 12px", borderRadius: 10, border: `1.5px solid ${error ? T.red : T.border}`, background: T.card, color: T.textPrimary, fontSize: 12, fontFamily: "monospace", outline: "none", boxSizing: "border-box", marginBottom: 8 }} />
+          {error && <div style={{ fontSize: 11, color: T.red, marginBottom: 8 }}>{error}</div>}
+          <button onClick={handleRedeem} disabled={checking || !code.trim()}
+            style={{ width: "100%", padding: "11px", borderRadius: 10, background: code.trim() ? T.indigo : T.border, color: code.trim() ? "white" : T.textMuted, fontWeight: 700, fontSize: 12, border: "none", cursor: code.trim() ? "pointer" : "not-allowed" }}>
+            {checking ? "Verifying…" : "Unlock with license key"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── CARD SETUP (Elite-only: pick accent color + nickname for the Trading Card) ─
+function CardSetup({ onSave, onBack }: { onSave: (c: CardProfile) => void; onBack: () => void }) {
+  const [accentColor, setAccentColor] = useState(CARD_ACCENT_COLORS[0]);
   const [nickname, setNickname] = useState("");
   const [previewMood, setPreviewMood] = useState<"happy"|"excited"|"neutral">("happy");
   useEffect(() => {
@@ -810,7 +997,7 @@ function BadgeSetup({ onSave, onBack }: { onSave: (b: Badge) => void; onBack: ()
   }, []);
   return (
     <div style={{ minHeight:"100%", background:T.bg, display:"flex", flexDirection:"column" }}>
-      <GlobalBadgeStyles />
+      <GlobalCardStyles />
       <div style={{ padding:"20px 20px 0", position:"sticky", top:0, background:T.bg, zIndex:10 }}>
         <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:12 }}>
           <button onClick={onBack} style={{ background:"none", border:"none", cursor:"pointer", color:T.textSecondary, padding:4 }}>
@@ -818,26 +1005,26 @@ function BadgeSetup({ onSave, onBack }: { onSave: (b: Badge) => void; onBack: ()
           </button>
           <Logo size={22}/>
         </div>
-        <StepBar total={5} current={5} />
-        <h2 style={{ fontWeight:900, fontSize:22, color:T.textPrimary, marginBottom:4 }}>Set Up Your Badge</h2>
+        <StepBar total={6} current={6} />
+        <h2 style={{ fontWeight:900, fontSize:22, color:T.textPrimary, marginBottom:4 }}>Set Up Your Trading Card</h2>
         <p style={{ fontSize:13, color:T.textSecondary, marginBottom:12 }}>
-          Starts as a <strong style={{color:T.neon}}>Rookie</strong> badge on day 1 and levels up to Bronze, Silver, Gold, then Diamond as your streak builds. 🏅
+          Starts as a <strong style={{color:T.neon}}>Rookie</strong> card on day 1 and levels up to Silver, Gold, Platinum, then Legend as your streak builds. 💳
         </p>
       </div>
       <div style={{ flex:1, overflowY:"auto", padding:"0 20px 32px" }}>
         <div style={{ display:"flex", justifyContent:"center", marginBottom:20 }}>
           <div style={{ background:T.surface, borderRadius:24, padding:"20px 24px", border:`2px solid ${T.neon}50`, boxShadow:shadow.neon, display:"inline-flex", flexDirection:"column", alignItems:"center", gap:10 }}>
-            <BadgeCompanion dayNum={1} mood={previewMood} size={140} auraColor={auraColor} />
+            <StatsCard dayNum={1} streak={1} mood={previewMood} size={140} accentColor={accentColor} />
             <div style={{ textAlign:"center" }}>
               <div style={{ fontWeight:900, fontSize:15, color:T.neon, textShadow:shadow.neon }}>
-                {nickname || "Name your badge"} · Rookie
+                {nickname || "Name your card"} · Rookie
               </div>
               <div style={{ fontSize:11, color:T.textMuted, marginTop:2 }}>Grows with your streak every day</div>
             </div>
           </div>
         </div>
         <div style={{ marginBottom:20 }}>
-          <div style={{ fontWeight:800, fontSize:12, color:T.neon, marginBottom:8, letterSpacing:"1px", textTransform:"uppercase" }}>Name Your Badge</div>
+          <div style={{ fontWeight:800, fontSize:12, color:T.neon, marginBottom:8, letterSpacing:"1px", textTransform:"uppercase" }}>Name Your Card</div>
           <input
             value={nickname}
             onChange={e => setNickname(e.target.value.slice(0,16))}
@@ -847,27 +1034,106 @@ function BadgeSetup({ onSave, onBack }: { onSave: (b: Badge) => void; onBack: ()
           />
           <div style={{ fontSize:11, color:T.textMuted, marginTop:4 }}>{nickname.length}/16 characters</div>
         </div>
-        <div style={{ fontWeight:800, fontSize:12, color:T.neon, marginBottom:8, letterSpacing:"1px", textTransform:"uppercase" }}>Aura Color</div>
+        <div style={{ fontWeight:800, fontSize:12, color:T.neon, marginBottom:8, letterSpacing:"1px", textTransform:"uppercase" }}>Accent Color</div>
         <div style={{ display:"flex", gap:10, flexWrap:"wrap", marginBottom:24 }}>
-          {BADGE_AURA_COLORS.map(c => (
-            <button key={c} onClick={() => setAuraColor(c)}
-              style={{ width:42, height:42, borderRadius:21, background:c, cursor:"pointer", border:`3px solid ${auraColor===c?"white":"transparent"}`, boxShadow:auraColor===c?`0 0 14px ${c}`:undefined }}/>
+          {CARD_ACCENT_COLORS.map(c => (
+            <button key={c} onClick={() => setAccentColor(c)}
+              style={{ width:42, height:42, borderRadius:21, background:c, cursor:"pointer", border:`3px solid ${accentColor===c?"white":"transparent"}`, boxShadow:accentColor===c?`0 0 14px ${c}`:undefined }}/>
           ))}
         </div>
         <div style={{ background:T.surface, borderRadius:16, padding:16, border:`1px solid ${T.border}`, marginBottom:20 }}>
           <div style={{ fontWeight:800, fontSize:12, color:T.neon, marginBottom:12, letterSpacing:"0.5px" }}>GROWTH TIERS</div>
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-end" }}>
-            {BADGE_TIERS.map(tier => (
+            {CARD_TIERS.map(tier => (
               <div key={tier.id} style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:4 }}>
-                <BadgeCompanion dayNum={tier.min} mood="happy" size={46} auraColor={auraColor} />
+                <StatsCard dayNum={tier.min} streak={tier.min} mood="happy" size={46} accentColor={accentColor} />
                 <div style={{ fontSize:9, color:T.textMuted, fontWeight:700, textAlign:"center" }}>Day {tier.min}<br/>{tier.label}</div>
               </div>
             ))}
           </div>
         </div>
-        <button onClick={() => onSave({ auraColor, nickname: nickname || "Comeback Badge" })}
+        <button onClick={() => onSave({ accentColor, nickname: nickname || "Comeback Card" })}
           style={{ width:"100%", padding:"15px", borderRadius:14, background:T.neon, color:T.bg, fontWeight:900, fontSize:16, border:"none", cursor:"pointer", boxShadow:shadow.neon }}>
-          {nickname ? `Save ${nickname} ✨` : "Save My Badge ✨"}
+          {nickname ? `Save ${nickname} ✨` : "Save My Card ✨"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ── ELITE UPGRADE (inline, in-dashboard path for Pro users) ───────────────────
+function EliteUpgradeInline({ onUpgrade }: { onUpgrade: (code: string, card: CardProfile) => void }) {
+  const [step, setStep] = useState<"pitch" | "setup">("pitch");
+  const [code, setCode] = useState("");
+  const [verifiedCode, setVerifiedCode] = useState("");
+  const [checking, setChecking] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [accentColor, setAccentColor] = useState(CARD_ACCENT_COLORS[0]);
+  const [nickname, setNickname] = useState("");
+
+  const handleRedeem = async () => {
+    if (!code.trim()) return;
+    setChecking(true); setError(null);
+    const result = await verifyLicenseCode(code.trim());
+    setChecking(false);
+    if (!result.valid) {
+      setError(result.reason === "bad-format" ? "That doesn't look like a Comeback license code." : "That code isn't valid.");
+      return;
+    }
+    if (result.plan !== "elite") {
+      setError("That's a Pro code — you already have Pro. You need an Elite code to unlock the Trading Card.");
+      return;
+    }
+    setVerifiedCode(code.trim());
+    setStep("setup");
+  };
+
+  if (step === "setup") {
+    return (
+      <div style={{ padding: "8px 0" }}>
+        <GlobalCardStyles />
+        <div style={{ display: "flex", justifyContent: "center", marginBottom: 16 }}>
+          <StatsCard dayNum={1} streak={1} mood="excited" size={130} accentColor={accentColor} />
+        </div>
+        <div style={{ fontWeight: 800, fontSize: 12, color: T.neon, marginBottom: 8, letterSpacing: "1px", textTransform: "uppercase" }}>Name Your Card</div>
+        <input value={nickname} onChange={e => setNickname(e.target.value.slice(0, 16))} placeholder="e.g. The Comeback"
+          style={{ width: "100%", padding: "12px 14px", borderRadius: 12, border: `1.5px solid ${nickname ? T.neon : T.border}`, background: T.card, color: T.textPrimary, fontSize: 15, fontFamily: "inherit", outline: "none", boxSizing: "border-box", marginBottom: 16 }} />
+        <div style={{ fontWeight: 800, fontSize: 12, color: T.neon, marginBottom: 8, letterSpacing: "1px", textTransform: "uppercase" }}>Accent Color</div>
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 20 }}>
+          {CARD_ACCENT_COLORS.map(c => (
+            <button key={c} onClick={() => setAccentColor(c)}
+              style={{ width: 38, height: 38, borderRadius: 19, background: c, cursor: "pointer", border: `3px solid ${accentColor === c ? "white" : "transparent"}`, boxShadow: accentColor === c ? `0 0 14px ${c}` : undefined }} />
+          ))}
+        </div>
+        <button onClick={() => onUpgrade(verifiedCode, { accentColor, nickname: nickname || "Comeback Card" })}
+          style={{ width: "100%", padding: "15px", borderRadius: 14, background: T.neon, color: T.bg, fontWeight: 900, fontSize: 16, border: "none", cursor: "pointer", boxShadow: shadow.neon }}>
+          Activate My Trading Card ✨
+        </button>
+      </div>
+    );
+  }
+  return (
+    <div style={{ textAlign: "center", padding: "24px 4px" }}>
+      <div style={{ fontSize: 56, marginBottom: 8 }}>💳</div>
+      <h2 style={{ fontWeight: 900, fontSize: 20, color: T.textPrimary, marginBottom: 8 }}>Go Elite to unlock the Trading Card</h2>
+      <p style={{ fontSize: 13, color: T.textSecondary, marginBottom: 16, lineHeight: 1.6 }}>
+        A Nike/Swoosh-style animated stats card — your athlete silhouette, sport icon, and big bold streak number, with 5 collectible tiers.
+      </p>
+      <div style={{ display: "flex", justifyContent: "center", marginBottom: 20, opacity: 0.55, filter: "grayscale(0.3)" }}>
+        <StatsCard dayNum={21} streak={21} mood="happy" size={110} />
+      </div>
+      <button onClick={() => window.open(PLAN_ELITE_URL, "_blank")}
+        style={{ width: "100%", padding: "14px", borderRadius: 12, background: T.neon, color: T.bg, fontWeight: 800, fontSize: 14, border: "none", cursor: "pointer", boxShadow: shadow.neon, marginBottom: 14, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+        <Crown size={16} /> Upgrade to Elite — $28.99/mo
+      </button>
+      <div style={{ background: T.surface, borderRadius: 14, padding: 14, border: `1px solid ${T.border}`, textAlign: "left" }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: T.textPrimary, marginBottom: 8 }}>Already upgraded? Enter your Elite license key</div>
+        <input value={code} onChange={e => setCode(e.target.value)} placeholder="CBK1.xxxxx.yyyyy"
+          style={{ width: "100%", padding: "10px 12px", borderRadius: 10, border: `1.5px solid ${error ? T.red : T.border}`, background: T.card, color: T.textPrimary, fontSize: 12, fontFamily: "monospace", outline: "none", boxSizing: "border-box", marginBottom: 8 }} />
+        {error && <div style={{ fontSize: 11, color: T.red, marginBottom: 8 }}>{error}</div>}
+        <button onClick={handleRedeem} disabled={checking || !code.trim()}
+          style={{ width: "100%", padding: "10px", borderRadius: 10, background: code.trim() ? T.indigo : T.border, color: code.trim() ? "white" : T.textMuted, fontWeight: 700, fontSize: 12, border: "none", cursor: code.trim() ? "pointer" : "not-allowed" }}>
+          {checking ? "Verifying…" : "Redeem code"}
         </button>
       </div>
     </div>
@@ -875,8 +1141,8 @@ function BadgeSetup({ onSave, onBack }: { onSave: (b: Badge) => void; onBack: ()
 }
 
 // ── APP DASHBOARD ─────────────────────────────────────────────────────────────
-function AppDashboard({ saved, onReset }: { saved: SavedState; onReset: () => void }) {
-  const [tab, setTab] = useState<"home" | "today" | "protocol" | "squad" | "badge">("home");
+function AppDashboard({ saved, onReset, onUpgrade }: { saved: SavedState; onReset: () => void; onUpgrade: (code: string, card: CardProfile) => void }) {
+  const [tab, setTab] = useState<"home" | "today" | "protocol" | "squad" | "card">("home");
   const getLiveCount = (base: number) => {
     const daySeed = parseInt(todayStr().replace(/-/g,"")) % 100;
     const sportSeed = saved.sportId.length * 7;
@@ -925,18 +1191,18 @@ function AppDashboard({ saved, onReset }: { saved: SavedState; onReset: () => vo
   const morningTasks   = tasks.slice(0, 3);
   const afternoonTasks = tasks.slice(3, 7);
   const eveningTasks   = tasks.slice(7);
-  const badgeMood: "happy" | "sad" | "excited" | "neutral" =
+  const cardMood: "happy" | "sad" | "excited" | "neutral" =
     allDone ? "excited" : doneCount >= tasks.length * 0.6 ? "happy" : !saved.streakAlive ? "sad" : "neutral";
-  const badgeQuote = allDone
-    ? BADGE_QUOTES.goal[dayNum % BADGE_QUOTES.goal.length]
+  const cardQuote = allDone
+    ? CARD_QUOTES.goal[dayNum % CARD_QUOTES.goal.length]
     : !saved.streakAlive
-    ? BADGE_QUOTES.miss[dayNum % BADGE_QUOTES.miss.length]
+    ? CARD_QUOTES.miss[dayNum % CARD_QUOTES.miss.length]
     : doneCount === 0
-    ? BADGE_QUOTES.morning[dayNum % BADGE_QUOTES.morning.length]
-    : BADGE_QUOTES.streak[dayNum % BADGE_QUOTES.streak.length];
+    ? CARD_QUOTES.morning[dayNum % CARD_QUOTES.morning.length]
+    : CARD_QUOTES.streak[dayNum % CARD_QUOTES.streak.length];
   const macros = bodyProfile ? calcMacros(bodyProfile.height, bodyProfile.weight, bodyProfile.gender, saved.goalId) : null;
-  const tier = getBadgeTier(dayNum);
-  const nextTier = getNextBadgeTier(dayNum);
+  const tier = getCardTier(dayNum);
+  const nextTier = getNextCardTier(dayNum);
   const handleLike = (postId: string) => {
     setPosts(prev => prev.map(p => p.id === postId ? { ...p, likes: p.likedByMe ? p.likes - 1 : p.likes + 1, likedByMe: !p.likedByMe } : p));
   };
@@ -967,13 +1233,13 @@ function AppDashboard({ saved, onReset }: { saved: SavedState; onReset: () => vo
               <div style={{ width: 36, height: 36, borderRadius: 18, background: T.surface, border: `1px solid ${T.border}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 }}>{sport?.icon || "🏆"}</div>
             </div>
           </div>
-          {saved.badge && (
+          {saved.plan === "elite" && saved.card && (
             <NeonCard style={{ marginBottom: 16 }}>
               <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-                <BadgeCompanion dayNum={dayNum} mood={badgeMood} size={72} auraColor={saved.badge.auraColor} />
+                <StatsCard dayNum={dayNum} streak={saved.streak} mood={cardMood} size={72} accentColor={saved.card.accentColor} sportIcon={sport?.icon || "🏆"} />
                 <div style={{ flex: 1 }}>
-                  <div style={{fontWeight:800,fontSize:10,color:T.neon,marginBottom:4,letterSpacing:"1px"}}>{saved.badge.nickname.toUpperCase()} SAYS</div>
-                  <p style={{ fontSize: 13, color: T.textPrimary, lineHeight: 1.5, fontStyle: "italic", margin: 0 }}>{badgeQuote}</p>
+                  <div style={{fontWeight:800,fontSize:10,color:T.neon,marginBottom:4,letterSpacing:"1px"}}>{saved.card.nickname.toUpperCase()} SAYS</div>
+                  <p style={{ fontSize: 13, color: T.textPrimary, lineHeight: 1.5, fontStyle: "italic", margin: 0 }}>{cardQuote}</p>
                 </div>
               </div>
             </NeonCard>
@@ -1082,7 +1348,7 @@ function AppDashboard({ saved, onReset }: { saved: SavedState; onReset: () => vo
                 <div style={{ fontSize: 40, marginBottom: 8 }}>🎉</div>
                 <div style={{ fontWeight: 900, fontSize: 18, color: T.neon, marginBottom: 4, textShadow: shadow.neon }}>Day Complete!</div>
                 <div style={{ fontSize: 13, color: T.textSecondary }}>Every task done. Your body is healing. See you tomorrow.</div>
-                {saved.badge && <div style={{ marginTop:12,display:"flex",justifyContent:"center" }}><BadgeCompanion dayNum={dayNum} mood="excited" size={80} auraColor={saved.badge.auraColor} /></div>}
+                {saved.plan === "elite" && saved.card && <div style={{ marginTop:12,display:"flex",justifyContent:"center" }}><StatsCard dayNum={dayNum} streak={saved.streak} mood="excited" size={80} accentColor={saved.card.accentColor} sportIcon={sport?.icon || "🏆"} /></div>}
               </Card>
             )}
           </div>
@@ -1232,39 +1498,41 @@ function AppDashboard({ saved, onReset }: { saved: SavedState; onReset: () => vo
           ))}
         </div>
       );
-      case "badge": return (
+      case "card": return (
         <div style={{ flex: 1, overflowY: "auto", background: T.bg, padding: "20px 18px 100px" }}>
-          {!saved.badge ? (
+          {saved.plan !== "elite" ? (
+            <EliteUpgradeInline onUpgrade={onUpgrade} />
+          ) : !saved.card ? (
             <div style={{ textAlign: "center", padding: "40px 20px" }}>
-              <div style={{fontSize:64,marginBottom:12}}>🏅</div>
-              <h2 style={{fontWeight:900,fontSize:22,color:T.textPrimary,marginBottom:8}}>Your Badge Companion</h2>
-              <p style={{fontSize:14,color:T.textSecondary,marginBottom:16,lineHeight:1.6}}>Finish setup from onboarding to unlock your Badge Companion.</p>
+              <div style={{fontSize:64,marginBottom:12}}>💳</div>
+              <h2 style={{fontWeight:900,fontSize:22,color:T.textPrimary,marginBottom:8}}>Your Trading Card</h2>
+              <p style={{fontSize:14,color:T.textSecondary,marginBottom:16,lineHeight:1.6}}>Finish setup from onboarding to unlock your Trading Card.</p>
             </div>
           ) : (
             <>
-              <h1 style={{ fontWeight:900, fontSize:22, color:T.textPrimary, marginBottom:4 }}>{saved.badge.nickname} 🏅</h1>
+              <h1 style={{ fontWeight:900, fontSize:22, color:T.textPrimary, marginBottom:4 }}>{saved.card.nickname} 💳</h1>
               <p style={{ fontSize:13, color:T.textSecondary, marginBottom:20 }}>
-                Your badge levels up every day you stay consistent. Currently <strong style={{color:T.neon}}>{tier.label}</strong>{nextTier ? ` · ${nextTier.min - dayNum > 0 ? nextTier.min - dayNum : 0} days to ${nextTier.label}` : " · Max tier reached"}.
+                Your card levels up every day you stay consistent. Currently <strong style={{color:T.neon}}>{tier.label}</strong>{nextTier ? ` · ${nextTier.min - dayNum > 0 ? nextTier.min - dayNum : 0} days to ${nextTier.label}` : " · Max tier reached"}.
               </p>
               <div style={{ display: "flex", justifyContent: "center", marginBottom: 20 }}>
                 <div style={{ background: T.surface, borderRadius: 24, padding: 24, border: `2px solid ${T.neon}50`, boxShadow: shadow.neon, display: "inline-flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
-                  <BadgeCompanion dayNum={dayNum} mood={badgeMood} size={150} auraColor={saved.badge.auraColor} />
+                  <StatsCard dayNum={dayNum} streak={saved.streak} mood={cardMood} size={170} accentColor={saved.card.accentColor} sportIcon={sport?.icon || "🏆"} />
                   <div style={{ textAlign: "center" }}>
-                    <div style={{ fontWeight:800, fontSize:14, color:T.neon, textShadow:shadow.neon }}>{saved.badge.nickname}</div>
-                    <div style={{ fontSize:11, color:T.textMuted }}>{tier.label} Badge · Day {dayNum}</div>
+                    <div style={{ fontWeight:800, fontSize:14, color:T.neon, textShadow:shadow.neon }}>{saved.card.nickname}</div>
+                    <div style={{ fontSize:11, color:T.textMuted }}>{tier.label} Card · Day {dayNum}</div>
                   </div>
                 </div>
               </div>
               <NeonCard style={{ marginBottom: 16 }}>
-                <div style={{fontWeight:800,fontSize:10,color:T.neon,marginBottom:8,letterSpacing:"1px"}}>{saved.badge.nickname.toUpperCase()} SAYS</div>
-                <p style={{ fontSize: 14, fontStyle: "italic", color: T.textPrimary, lineHeight: 1.65, fontFamily: "Georgia,serif", margin: 0 }}>{badgeQuote}</p>
+                <div style={{fontWeight:800,fontSize:10,color:T.neon,marginBottom:8,letterSpacing:"1px"}}>{saved.card.nickname.toUpperCase()} SAYS</div>
+                <p style={{ fontSize: 14, fontStyle: "italic", color: T.textPrimary, lineHeight: 1.65, fontFamily: "Georgia,serif", margin: 0 }}>{cardQuote}</p>
               </NeonCard>
               <Card style={{ marginBottom: 16 }}>
                 <div style={{ fontWeight: 800, fontSize: 13, color: T.textPrimary, marginBottom: 10 }}>Growth tiers</div>
                 <div style={{ display: "flex", justifyContent: "space-between" }}>
-                  {BADGE_TIERS.map(t => (
+                  {CARD_TIERS.map(t => (
                     <div key={t.id} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, opacity: dayNum >= t.min ? 1 : 0.4 }}>
-                      <BadgeCompanion dayNum={t.min} mood="happy" size={44} auraColor={saved.badge!.auraColor} />
+                      <StatsCard dayNum={t.min} streak={t.min} mood="happy" size={44} accentColor={saved.card!.accentColor} sportIcon={sport?.icon || "🏆"} />
                       <div style={{ fontSize: 9, color: dayNum >= t.min ? T.neon : T.textMuted, fontWeight: 700 }}>{t.label}</div>
                     </div>
                   ))}
@@ -1302,7 +1570,7 @@ function AppDashboard({ saved, onReset }: { saved: SavedState; onReset: () => vo
   };
   return (
     <div style={{ height: "100%", display: "flex", flexDirection: "column", background: T.bg }}>
-      <GlobalBadgeStyles />
+      <GlobalCardStyles />
       <div style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column", minHeight: 0 }}>{renderTab()}</div>
       <div style={{ flexShrink: 0, background: T.surface, borderTop: `1px solid ${T.border}`, paddingBottom: "env(safe-area-inset-bottom,12px)", paddingTop: 10, paddingLeft: 4, paddingRight: 4, display: "flex", justifyContent: "space-around", alignItems: "flex-end", zIndex: 50 }}>
         <NavBtn icon={<Home size={20} />}     label="Home"     active={tab === "home"}     onClick={() => setTab("home")} />
@@ -1311,7 +1579,7 @@ function AppDashboard({ saved, onReset }: { saved: SavedState; onReset: () => vo
           <Dumbbell size={22} color={tab === "today" ? T.bg : T.textSecondary} />
         </button>
         <NavBtn icon={<Users size={20} />}   label="Squad"   active={tab === "squad"}   onClick={() => setTab("squad")} />
-        <NavBtn icon={<Trophy size={20} />}  label="Badge"   active={tab === "badge"}   onClick={() => setTab("badge")} />
+        <NavBtn icon={<Trophy size={20} />}  label="Card"    active={tab === "card"}    onClick={() => setTab("card")} />
       </div>
     </div>
   );
@@ -1319,51 +1587,292 @@ function AppDashboard({ saved, onReset }: { saved: SavedState; onReset: () => vo
 
 // ── ROOT APP ──────────────────────────────────────────────────────────────────
 export default function App() {
-  type Screen = "welcome" | "sport" | "injury" | "severity" | "goal" | "badge" | "dashboard";
-  const [saved, setSaved] = useState<SavedState | null>(() => loadState());
-  const [screen, setScreen] = useState<Screen>(() => loadState() ? "dashboard" : "welcome");
+  type Screen = "welcome" | "sport" | "injury" | "severity" | "goal" | "paywall" | "card" | "dashboard" | "verifying";
+  const [saved, setSaved] = useState<SavedState | null>(null);
+  const [screen, setScreen] = useState<Screen>("verifying");
   const [sport,    setSport]    = useState<typeof SPORTS[0] | undefined>();
   const [injury,   setInjury]   = useState<typeof INJURIES[0] | undefined>();
   const [severity, setSeverity] = useState<typeof SEVERITIES[0] | undefined>();
   const [goal,     setGoal]     = useState<typeof GOALS_LIST[0] | undefined>();
+  const [pendingPlan,    setPendingPlan]    = useState<"pro" | "elite" | undefined>();
+  const [pendingLicense, setPendingLicense] = useState<string | undefined>();
 
+  // Re-verify the stored license signature on every load. This is the crux of
+  // the anti-scam protection: a user can freely edit localStorage to set
+  // plan:"elite", but without a genuine signature from the private key
+  // (which never ships with the app) verifyLicenseCode() will reject it and
+  // we drop them back to the paywall instead of trusting the stored flag.
   useEffect(() => {
-    const s = loadState();
-    if (!s) return;
-    const today = todayStr();
-    if (s.lastActiveDate === today) return;
-    const diff = daysBetween(s.lastActiveDate, today);
-    let streak = s.streak; let alive = s.streakAlive;
-    if (diff === 1) { streak = s.streak + 1; alive = true; }
-    else if (diff > 1) { streak = 0; alive = false; }
-    const updated = { ...s, lastActiveDate: today, streak, streakAlive: alive };
-    saveState(updated); setSaved(updated);
+    (async () => {
+      const s = loadState();
+      if (!s) { setScreen("welcome"); return; }
+      const result = await verifyLicenseCode(s.licenseCode);
+      if (!result.valid || result.plan !== s.plan) {
+        clearState(); setSaved(null); setScreen("welcome");
+        return;
+      }
+      const today = todayStr();
+      let updated = s;
+      if (s.lastActiveDate !== today) {
+        const diff = daysBetween(s.lastActiveDate, today);
+        let streak = s.streak; let alive = s.streakAlive;
+        if (diff === 1) { streak = s.streak + 1; alive = true; }
+        else if (diff > 1) { streak = 0; alive = false; }
+        updated = { ...s, lastActiveDate: today, streak, streakAlive: alive };
+        saveState(updated);
+      }
+      setSaved(updated); setScreen("dashboard");
+    })();
   }, []);
 
-  const handleBadgeSave = (badge: Badge) => {
+  const finalizeSetup = (plan: "pro" | "elite", code: string, card: CardProfile | null) => {
     if (!sport || !injury || !severity || !goal) return;
     const today = todayStr();
     const ns: SavedState = {
       sportId: sport.id, injuryId: injury.id, severityId: severity.id, goalId: goal.id,
       startDate: today, lastActiveDate: today, streak: 1, streakAlive: true,
-      completedTasks: {}, suppChecked: {}, bodyProfile: null, badge, posts: {},
+      completedTasks: {}, suppChecked: {}, bodyProfile: null, card, posts: {},
+      plan, licenseCode: code,
     };
     saveState(ns); setSaved(ns); setScreen("dashboard");
   };
+  const handlePlanUnlock = (plan: "pro" | "elite", code: string) => {
+    setPendingPlan(plan); setPendingLicense(code);
+    if (plan === "elite") setScreen("card");
+    else finalizeSetup(plan, code, null);
+  };
+  const handleCardSave = (card: CardProfile) => {
+    if (!pendingPlan || !pendingLicense) return;
+    finalizeSetup(pendingPlan, pendingLicense, card);
+  };
+  const handleUpgradeToElite = (code: string, card: CardProfile) => {
+    const s = loadState();
+    if (!s) return;
+    const updated: SavedState = { ...s, plan: "elite", licenseCode: code, card };
+    saveState(updated); setSaved(updated);
+  };
   const handleReset = () => {
-    clearState(); setSaved(null); setSport(undefined); setInjury(undefined); setSeverity(undefined); setGoal(undefined); setScreen("welcome");
+    clearState(); setSaved(null); setSport(undefined); setInjury(undefined); setSeverity(undefined); setGoal(undefined);
+    setPendingPlan(undefined); setPendingLicense(undefined); setScreen("welcome");
   };
 
   return (
     <div style={{ width: "100%", height: "100dvh", maxWidth: 430, margin: "0 auto", overflow: "hidden", display: "flex", flexDirection: "column", fontFamily: "'Inter',sans-serif", background: T.bg }}>
+      {screen === "verifying" && <div style={{ flex: 1 }} />}
       {screen === "welcome"  && <div style={{ flex: 1, overflowY: "auto" }}><Welcome onNext={() => setScreen("sport")} /></div>}
       {screen === "sport"    && <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column" }}><SportSelect    onNext={s  => { setSport(s);    setScreen("injury");   }} /></div>}
       {screen === "injury"   && <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column" }}><InjurySelect   onNext={i  => { setInjury(i);   setScreen("severity"); }} /></div>}
       {screen === "severity" && <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column" }}><SeveritySelect onNext={sv => { setSeverity(sv); setScreen("goal");     }} /></div>}
-      {screen === "goal"     && <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column" }}><GoalSelect     onNext={g  => { setGoal(g);     setScreen("badge");    }} /></div>}
-      {screen === "badge"    && <BadgeSetup onSave={handleBadgeSave} onBack={() => setScreen("goal")} />}
-      {screen === "dashboard" && saved && <AppDashboard saved={saved} onReset={handleReset} />}
+      {screen === "goal"     && <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column" }}><GoalSelect     onNext={g  => { setGoal(g);     setScreen("paywall");  }} /></div>}
+      {screen === "paywall"  && <Paywall onUnlock={handlePlanUnlock} onBack={() => setScreen("goal")} />}
+      {screen === "card"     && <CardSetup onSave={handleCardSave} onBack={() => setScreen("paywall")} />}
+      {screen === "dashboard" && saved && <AppDashboard saved={saved} onReset={handleReset} onUpgrade={handleUpgradeToElite} />}
     </div>
   );
+#!/usr/bin/env node
+// Comeback Pro/Elite — one script for everything license-related.
+// Replaces the old generate-keypair.mjs / issue-license.mjs / verify-license.mjs
+// trio with a single CLI. Same logic, same file format, same keys/ folder —
+// just one thing to remember instead of three.
+//
+// Usage:
+//   node license.mjs generate
+//   node license.mjs issue --plan pro
+//   node license.mjs issue --plan elite --note "jane@example.com / ch_3Pabc123"
+//   node license.mjs verify "CBK1.xxxx.yyyy"
+//
+// See README.md for the full write-up of how and why this works.
+
+import { readFile, writeFile, appendFile, mkdir } from "node:fs/promises";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const here = dirname(fileURLToPath(import.meta.url));
+const keysDir = join(here, "keys");
+const publicKeyPath = join(keysDir, "public.jwk.json");
+const privateKeyPath = join(keysDir, "private.jwk.json");
+const logPath = join(here, "issued-licenses.log");
+const { subtle } = globalThis.crypto;
+
+function base64url(bytes) {
+  return Buffer.from(bytes).toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+function base64urlToBytes(s) {
+  const b64 = s.replace(/-/g, "+").replace(/_/g, "/") + "===".slice((s.length + 3) % 4);
+  return new Uint8Array(Buffer.from(b64, "base64"));
 }
 
+// ---- generate --------------------------------------------------------------
+async function cmdGenerate() {
+  await mkdir(keysDir, { recursive: true });
+  const keyPair = await subtle.generateKey({ name: "ECDSA", namedCurve: "P-256" }, true, ["sign", "verify"]);
+  const publicJwk = await subtle.exportKey("jwk", keyPair.publicKey);
+  const privateJwk = await subtle.exportKey("jwk", keyPair.privateKey);
+
+  await writeFile(publicKeyPath, JSON.stringify(publicJwk, null, 2) + "\n");
+  await writeFile(privateKeyPath, JSON.stringify(privateJwk, null, 2) + "\n");
+
+  console.log("New keypair written to license-tools/keys/");
+  console.log("");
+  console.log("Next steps:");
+  console.log("1. Copy the contents of keys/public.jwk.json into the PUBLIC_KEY_JWK");
+  console.log("   constant near the top of comeback-pro.tsx, then rebuild/redeploy the app.");
+  console.log("2. Keep keys/private.jwk.json somewhere safe and private. It's the only");
+  console.log("   thing that can produce a license code the app will accept.");
+  console.log("3. Any license codes issued with the OLD key — including ones in your");
+  console.log("   webhook secrets, if you're running that — stop working the moment you");
+  console.log("   ship the new PUBLIC_KEY_JWK. Only rotate if you have a reason to.");
+}
+
+// ---- issue -------------------------------------------------------------------
+async function cmdIssue(args) {
+  const plan = getFlag(args, "--plan");
+  const note = getFlag(args, "--note") || "";
+  if (plan !== "pro" && plan !== "elite") {
+    console.error('Usage: node license.mjs issue --plan pro|elite [--note "who this is for"]');
+    process.exit(1);
+  }
+
+  const privateJwk = JSON.parse(await readFile(privateKeyPath, "utf8"));
+  const privateKey = await subtle.importKey("jwk", privateJwk, { name: "ECDSA", namedCurve: "P-256" }, false, ["sign"]);
+
+  const payload = {
+    plan,
+    iat: Math.floor(Date.now() / 1000),
+    id: Buffer.from(globalThis.crypto.getRandomValues(new Uint8Array(6))).toString("hex"),
+  };
+  const payloadBytes = new TextEncoder().encode(JSON.stringify(payload));
+  const sigBytes = new Uint8Array(await subtle.sign({ name: "ECDSA", hash: "SHA-256" }, privateKey, payloadBytes));
+  const code = `CBK1.${base64url(payloadBytes)}.${base64url(sigBytes)}`;
+
+  console.log("");
+  console.log(`License code (${plan}):`);
+  console.log(code);
+  console.log("");
+  console.log("Send this exact string to the customer. They paste it into the");
+  console.log('"Already purchased? Enter your license key" box in the app.');
+
+  const logLine = `${new Date().toISOString()}\t${plan}\t${payload.id}\t${note}\t${code}\n`;
+  await appendFile(logPath, logLine);
+  console.log("");
+  console.log("(Logged to license-tools/issued-licenses.log for your own records.)");
+}
+
+// ---- verify -------------------------------------------------------------------
+async function verifyLicenseCode(code) {
+  if (typeof code !== "string" || !code.startsWith("CBK1.")) return { valid: false, reason: "bad-format" };
+  const parts = code.split(".");
+  if (parts.length !== 3) return { valid: false, reason: "bad-format" };
+  const [, payloadPart, sigPart] = parts;
+  let payload;
+  try {
+    payload = JSON.parse(Buffer.from(base64urlToBytes(payloadPart)).toString("utf8"));
+  } catch {
+    return { valid: false, reason: "bad-payload" };
+  }
+  if (payload.plan !== "pro" && payload.plan !== "elite") return { valid: false, reason: "bad-plan" };
+
+  const publicJwk = JSON.parse(await readFile(publicKeyPath, "utf8"));
+  const publicKey = await subtle.importKey("jwk", publicJwk, { name: "ECDSA", namedCurve: "P-256" }, false, ["verify"]);
+  const ok = await subtle.verify(
+    { name: "ECDSA", hash: "SHA-256" }, publicKey, base64urlToBytes(sigPart), base64urlToBytes(payloadPart)
+  );
+  if (!ok) return { valid: false, reason: "bad-signature" };
+  return { valid: true, plan: payload.plan, issuedAt: payload.iat, id: payload.id };
+}
+
+async function cmdVerify(args) {
+  const code = args[0];
+  if (!code) {
+    console.error('Usage: node license.mjs verify "CBK1.xxxx.yyyy"');
+    process.exit(1);
+  }
+  const result = await verifyLicenseCode(code);
+  console.log(result);
+  process.exit(result.valid ? 0 : 2);
+}
+
+// ---- tiny arg helper --------------------------------------------------------
+function getFlag(args, name) {
+  const i = args.indexOf(name);
+  return i === -1 ? undefined : args[i + 1];
+}
+
+// ---- entry point -------------------------------------------------------------
+const [cmd, ...rest] = process.argv.slice(2);
+switch (cmd) {
+  case "generate": await cmdGenerate(); break;
+  case "issue": await cmdIssue(rest); break;
+  case "verify": await cmdVerify(rest); break;
+  default:
+    console.log("Comeback license tools — one script for key management, issuing, and verifying.");
+    console.log("");
+    console.log("Usage:");
+    console.log("  node license.mjs generate                        create a new signing keypair");
+    console.log("  node license.mjs issue --plan pro|elite [--note] sign a new license code");
+    console.log('  node license.mjs verify "CBK1.xxxx.yyyy"          check whether a code is valid');
+    process.exit(cmd ? 1 : 0);
+}
+2026-07-23T16:58:46.265Z	pro	56c5b48a6833	manu (owner) - personal free access	CBK1.eyJwbGFuIjoicHJvIiwiaWF0IjoxNzg0ODI1OTI2LCJpZCI6IjU2YzViNDhhNjgzMyJ9.9zUw4G1m4465El6YkXk70QrsMmAcU1jYzfW0OOmvKrxdBc3l_PwS9SMWoRH-o8gFjrImqde9F1iDP0mrFEcpzQ
+2026-07-23T16:58:46.329Z	elite	55486ab7d043	manu (owner) - personal free access	CBK1.eyJwbGFuIjoiZWxpdGUiLCJpYXQiOjE3ODQ4MjU5MjYsImlkIjoiNTU0ODZhYjdkMDQzIn0.9WRxLyHkWqUQ99pRg3HQlseu0MfltlYRPdRFtqNzD4Fs2mNyvPHD8OlGo8gvN6BnwVN9p_n4Ot4nwlH1lQM-zw
+2026-07-23T17:04:56.734Z	pro	ab189fe09cc2	test: consolidated script	CBK1.eyJwbGFuIjoicHJvIiwiaWF0IjoxNzg0ODI2Mjk2LCJpZCI6ImFiMTg5ZmUwOWNjMiJ9.mK0uc-Zmz7trfZdbzKcWRNcMBkkwuyzTariuuqI6hLJgxJvc03hbmTbaIOEuUQYl6qCbigCNoiD9JuydoIcBaQ
+2026-07-23T17:04:56.856Z	elite	da0c8fb08069	test: consolidated script	CBK1.eyJwbGFuIjoiZWxpdGUiLCJpYXQiOjE3ODQ4MjYyOTYsImlkIjoiZGEwYzhmYjA4MDY5In0.K5ezWroCRRrXONd2Hlbx_12hUJxgnEoYG7e3bspeXtvBlxYArHwokckIeKTIb64oOyJgkNq81yiG7HA9LLo3Nw
+2026-07-23T17:06:27.775Z	pro	4727f5ddf74b	final regression test	CBK1.eyJwbGFuIjoicHJvIiwiaWF0IjoxNzg0ODI2Mzg3LCJpZCI6IjQ3MjdmNWRkZjc0YiJ9.qUbj_NkSlMLyRxcqBlLnEiWevJtcbQrWNF1GjwQPwdxXH-jvpFm5g8FWK7RvJku5twNRzPMViRwG9OZVELNhXA
+name = "comeback-license-webhook"
+main = "src/index.js"
+compatibility_date = "2026-07-23"
+
+# Non-secret configuration. Fill these in — see DEPLOY.md for how to find
+# each value. None of these are sensitive; the actual secrets (API keys,
+# the private signing key) are set separately with `wrangler secret put`
+# and never live in this file or in source control.
+[vars]
+PRICE_ID_PRO = "price_REPLACE_ME"
+PRICE_ID_ELITE = "price_REPLACE_ME"
+FROM_EMAIL = "license@yourdomain.com"
+SELLER_NOTIFY_EMAIL = "you@yourdomain.com"
+
+# Create with: wrangler kv:namespace create license_kv
+# Then paste the id it prints below.
+[[kv_namespaces]]
+binding = "LICENSE_KV"
+id = "REPLACE_ME"
+{
+  "name": "comeback-license-webhook",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Cloudflare Worker: Stripe checkout.session.completed -> sign Comeback license code -> email it",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "secret:stripe-key": "wrangler secret put STRIPE_SECRET_KEY",
+    "secret:stripe-webhook": "wrangler secret put STRIPE_WEBHOOK_SECRET",
+    "secret:license-key": "wrangler secret put LICENSE_PRIVATE_KEY_JWK",
+    "secret:resend-key": "wrangler secret put RESEND_API_KEY"
+  },
+  "devDependencies": {
+    "wrangler": "^3.90.0"
+  }
+}
+{
+  "key_ops": [
+    "verify"
+  ],
+  "ext": true,
+  "kty": "EC",
+  "x": "rxweEwBKStDtmPACeGZTeem3DosMdCrPzxvEBP-W3yQ",
+  "y": "NqzZGAzX23lYoIijwn3xzMqOYfruDy_wTveb-3eF8u8",
+  "crv": "P-256"
+}
+{
+  "key_ops": [
+    "sign"
+  ],
+  "ext": true,
+  "kty": "EC",
+  "x": "rxweEwBKStDtmPACeGZTeem3DosMdCrPzxvEBP-W3yQ",
+  "y": "NqzZGAzX23lYoIijwn3xzMqOYfruDy_wTveb-3eF8u8",
+  "crv": "P-256",
+  "d": "gn_dYVk5oRhxH8KSWZ6Uf-Yf1YKeSLV3j41pih-8hJs"
+}
