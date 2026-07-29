@@ -206,10 +206,10 @@ const ELITE_FEATURES = [
   "5 collectible card tiers: Rookie → Silver → Gold → Platinum → Legend",
   "Priority support",
 ];
-function base64urlToBytes(s: string): Uint8Array {
+function base64urlToBytes(s: string): Uint8Array<ArrayBuffer> {
   const b64 = s.replace(/-/g, "+").replace(/_/g, "/") + "===".slice((s.length + 3) % 4);
   const bin = atob(b64);
-  const bytes = new Uint8Array(bin.length);
+  const bytes = new Uint8Array(new ArrayBuffer(bin.length));
   for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
   return bytes;
 }
@@ -903,11 +903,11 @@ function BodyProfileForm({ onSave }: { onSave: (p: BodyProfile) => void }) {
       <h3 style={{ fontWeight: 900, fontSize: 16, color: T.textPrimary, marginBottom: 4 }}>Your Body Profile</h3>
       <p style={{ fontSize: 12, color: T.textSecondary, marginBottom: 16 }}>We calculate exact daily macro targets for your recovery.</p>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
-        {([["HEIGHT (cm)", "height", "175"], ["WEIGHT (kg)", "weight", "75"]] as [string,string,string][]).map(([label, key, ph]) => (
+        {([["HEIGHT (cm)", "height", "175"], ["WEIGHT (kg)", "weight", "75"]] as [string, keyof BodyProfile, string][]).map(([label, key, ph]) => (
           <div key={key}>
             <label style={{ fontSize: 11, fontWeight: 700, color: T.textMuted, display: "block", marginBottom: 4 }}>{label}</label>
             <input type="number" placeholder={ph}
-              value={(form as Record<string, string>)[key]}
+              value={form[key]}
               onChange={e => setForm(f => ({ ...f, [key]: e.target.value }))}
               style={{ width: "100%", padding: "10px", borderRadius: 10, border: `1.5px solid ${T.border}`, background: T.card, color: T.textPrimary, fontSize: 14, fontFamily: "inherit", boxSizing: "border-box", outline: "none" }} />
           </div>
