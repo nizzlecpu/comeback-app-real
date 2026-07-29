@@ -258,12 +258,12 @@ async function verifyLicenseCode(code: string): Promise<LicenseResult> {
 // cloud-sync feature below silently no-ops and the app works exactly as it
 // did with local-only storage.
 const FIREBASE_CONFIG = {
-  apiKey: "",
-  authDomain: "",
-  projectId: "",
-  storageBucket: "",
-  messagingSenderId: "",
-  appId: "",
+  apiKey: "AIzaSyDyxtBAEhAxtI7vtMKtq_2adNLPELuApOA",
+  authDomain: "comeback-trainer-app.firebaseapp.com",
+  projectId: "comeback-trainer-app",
+  storageBucket: "comeback-trainer-app.firebasestorage.app",
+  messagingSenderId: "431352851047",
+  appId: "1:431352851047:web:ca0b005f7d5c336ceb02c2",
 };
 const firebaseApp: FirebaseApp | null = FIREBASE_CONFIG.apiKey ? initializeApp(FIREBASE_CONFIG) : null;
 const firebaseAuth: Auth | null = firebaseApp ? getAuth(firebaseApp) : null;
@@ -337,49 +337,49 @@ function friendlyAuthError(code?: string): string {
 // ── DATA ──────────────────────────────────────────────────────────────────────
 const SPORTS = [
   {id:"basketball",label:"Basketball",icon:"🏀",color:"#FF6B00",athlete:"LeBron James",liveUsers:142,
-   img:"https://images.unsplash.com/photo-1546519638-68e109498ffc?w=400&q=80",
+   img:"https://images.unsplash.com/photo-1755418486245-db81809d16a8?w=400&q=80",
    quotes:['"Ice 20 min, elevate, compress. Don\'t rush the timeline."','"Sleep is my best recovery tool. 12 hours a night."','"The hardest day is day 3. Push through it."','"30g protein within 20 min of stopping."','"Mind over matter is real but so is the protocol."']},
   {id:"football",label:"Football",icon:"🏈",color:"#22CC00",athlete:"Patrick Mahomes",liveUsers:198,
-   img:"https://images.unsplash.com/photo-1566577739112-5180d4bf9390?w=400&q=80",
+   img:"https://images.unsplash.com/photo-1757587986665-f51004989a86?w=400&q=80",
    quotes:['"Work range of motion before resistance."','"Visualization during recovery is underrated."','"Cold tub is non-negotiable. 8 minutes every session."','"Your PT is your co-coach."','"Fear of re-injury is the real enemy."']},
   {id:"soccer",label:"Soccer",icon:"⚽",color:"#38BDF8",athlete:"Cristiano Ronaldo",liveUsers:247,
-   img:"https://images.unsplash.com/photo-1574629810360-7efbbe195018?w=400&q=80",
+   img:"https://images.unsplash.com/photo-1748111822618-e7c38b0c6233?w=400&q=80",
    quotes:['"Cold water immersion after every session."','"Sleep 8 hours minimum."','"Nutrition is 50% of recovery."','"Flexibility saved my knees."','"Coming back at 95% beats returning at 75%."']},
   {id:"baseball",label:"Baseball",icon:"⚾",color:"#FF3B3B",athlete:"Shohei Ohtani",liveUsers:87,
-   img:"https://images.unsplash.com/photo-1508344928928-7165b67de128?w=400&q=80",
+   img:"https://images.unsplash.com/photo-1489460427746-b6296f4bc3f5?w=400&q=80",
    quotes:['"Rotator cuff work is never optional."','"Arm care starts before you feel pain."','"I track HRV every morning."','"Recovery is just another form of training."','"Cross-training in the pool saved my shoulder."']},
   {id:"tennis",label:"Tennis",icon:"🎾",color:"#84CC16",athlete:"Serena Williams",liveUsers:63,
-   img:"https://images.unsplash.com/photo-1554068865-24cecd4e34b8?w=400&q=80",
+   img:"https://images.unsplash.com/photo-1758040252389-47b48246fecb?w=400&q=80",
    quotes:['"Listen to inflammation signals."','"Mental game breaks down first in long recoveries."','"Eccentric strengthening for tendons."','"Cry and then do the work."','"Work with a sports dietitian."']},
   {id:"track",label:"Track & Field",icon:"🏃",color:"#A855F7",athlete:"Usain Bolt",liveUsers:45,
-   img:"https://images.unsplash.com/photo-1461896836934-ffe607ba8211?w=400&q=80",
+   img:"https://images.unsplash.com/photo-1502904550040-7534597429ae?w=400&q=80",
    quotes:['"Hip flexor mobility is the unlock."','"The body remembers what you build."','"Speed is neurological as much as muscular."','"Water running kept my fitness alive."','"God didn\'t give you these legs to sit."']},
   {id:"swimming",label:"Swimming",icon:"🏊",color:"#38BDF8",athlete:"Michael Phelps",liveUsers:38,
    img:"https://images.unsplash.com/photo-1530549387789-4c1017266635?w=400&q=80",
    quotes:['"Shoulder recovery is 60% sleep."','"Get a therapist, not just a PT."','"Recovery is a race too."','"Show up daily, even at 20%."','"Gratitude practice kept me from spiraling."']},
   {id:"volleyball",label:"Volleyball",icon:"🏐",color:"#F59E0B",athlete:"Misty May-Treanor",liveUsers:29,
-   img:"https://images.unsplash.com/photo-1612872087720-bb876e2e67d1?w=400&q=80",
+   img:"https://images.unsplash.com/photo-1765910226872-e8811bd45d3e?w=400&q=80",
    quotes:['"Single-leg balance from day 3."','"Smart is smarter than tough."','"Core stability is the foundation."','"Protocol and prayer."','"Track your swelling daily."']},
   {id:"golf",label:"Golf",icon:"⛳",color:"#22CC00",athlete:"Tiger Woods",liveUsers:54,
-   img:"https://images.unsplash.com/photo-1535131749006-b7f58c99034b?w=400&q=80",
+   img:"https://images.unsplash.com/photo-1693163637018-cec278130a11?w=400&q=80",
    quotes:['"Core is everything."','"Never skip the small work."','"Patience is a skill."','"What you rebuild is more valuable."','"Ego in the weight room will re-injure you."']},
   {id:"mma",label:"MMA / Combat",icon:"🥊",color:"#FF3B3B",athlete:"Conor McGregor",liveUsers:176,
-   img:"https://images.unsplash.com/photo-1549719386-74dfcbf7dbed?w=400&q=80",
+   img:"https://images.unsplash.com/photo-1530679546306-f0ff3e83d96b?w=400&q=80",
    quotes:['"Fascia work daily separates 6-month from 4."','"I used doubt as fuel every day."','"Ice, elevation, time. The shortcut IS the protocol."','"Isolation kills motivation."','"Every champion has a comeback story."']},
   {id:"gymnastics",label:"Gymnastics",icon:"🤸",color:"#EC4899",athlete:"Simone Biles",liveUsers:41,
-   img:"https://images.unsplash.com/photo-1577474994498-5d7693a5c9d9?w=400&q=80",
+   img:"https://images.unsplash.com/photo-1747336406564-717968046260?w=400&q=80",
    quotes:['"Mental recovery is as real as physical."','"Taking time off was the bravest decision."','"Trust your body\'s timeline."','"Fear is just another skill to master."','"The body will catch up to the mind."']},
   {id:"cycling",label:"Cycling",icon:"🚴",color:"#6366F1",athlete:"Chris Froome",liveUsers:33,
-   img:"https://images.unsplash.com/photo-1558981285-6f0c94958bb6?w=400&q=80",
+   img:"https://images.unsplash.com/photo-1510005294384-c03e247f0542?w=400&q=80",
    quotes:['"Rebuild cadence before power."','"Doctors said never race again. I won Vuelta."','"Small wins compound."','"My physio was more important than my coach."','"Let yourself feel it."']},
   {id:"hockey",label:"Hockey",icon:"🏒",color:"#38BDF8",athlete:"Sidney Crosby",liveUsers:89,
-   img:"https://images.unsplash.com/photo-1515703407324-5f753afd8be8?w=400&q=80",
+   img:"https://images.unsplash.com/photo-1516225668366-88ffccd6f9d1?w=400&q=80",
    quotes:['"Concussion protocol is sacred."','"Cognitive rest is a skill."','"Sleep became medicine."','"A good team respects your recovery."','"Fear of another hit is real by phase 3."']},
   {id:"rugby",label:"Rugby",icon:"🏉",color:"#F59E0B",athlete:"Richie McCaw",liveUsers:47,
-   img:"https://images.unsplash.com/photo-1603575448360-153f093fd0b2?w=400&q=80",
+   img:"https://images.unsplash.com/photo-1495329167757-7a95435de2d7?w=400&q=80",
    quotes:['"Proprioception drills — religiously."','"Sometimes playing through it is wrong."','"Week 3 is the mental valley."','"Listen to your doctor."','"Cold water changed my recovery rate."']},
   {id:"lacrosse",label:"Lacrosse",icon:"🥍",color:"#F97316",athlete:"Paul Rabil",liveUsers:25,
-   img:"https://images.unsplash.com/photo-1626248801379-51a0748a5f96?w=400&q=80",
+   img:"https://images.unsplash.com/photo-1531951844469-c0ac27049ad0?w=400&q=80",
    quotes:['"Eccentric loading is the cheat code."','"Second ACL — came back 3 weeks early."','"Fix the root cause."','"Faith over fear."','"Every drill served my return."']},
 ];
 const INJURIES = [
@@ -806,9 +806,26 @@ const CARD_QUOTES: Record<string,string[]> = {
   ],
 };
 
-// ── STATS CARD — Nike/Swoosh Trading Card (SVG + CSS, Elite-exclusive) ────────
-function StatsCard({ dayNum, streak, mood = "happy", size = 150, accentColor = T.neon, sportIcon = "🏆" }: {
-  dayNum: number; streak: number; mood?: "happy"|"excited"|"neutral"|"sad"; size?: number; accentColor?: string; sportIcon?: string;
+// ── STATS CARD — FIFA-style Trading Card (SVG + CSS, Elite-exclusive) ─────────
+// Every number on this card maps to something the person actually did:
+// CON = % of logged days they completed every task, MOM = current streak
+// strength, REC = supplement/recovery-protocol adherence, PRG = % through
+// their full recovery program. OVR is just the average of those four — so a
+// 91 OVR card is genuinely earned, not decorative. The old version drew the
+// "athlete" as three rectangles and a circle, which read as a mannequin —
+// this version drops the body entirely in favor of a glowing sport emblem
+// (crest + energy rings + motion lines), closer to how real trading cards
+// lean on typography, ratings and a bold central icon rather than a literal
+// figure. The neon-green under-glow on every card (independent of tier or
+// the user's chosen accent color) is the one constant tying every card back
+// to the app's own brand color, no matter how it's customized.
+function StatsCard({
+  dayNum, streak, mood = "happy", size = 150, accentColor = T.neon, sportIcon = "🏆",
+  consistencyPct, recoveryPct, progressPct,
+}: {
+  dayNum: number; streak: number; mood?: "happy"|"excited"|"neutral"|"sad"; size?: number;
+  accentColor?: string; sportIcon?: string;
+  consistencyPct?: number; recoveryPct?: number; progressPct?: number;
 }) {
   const tier = getCardTier(dayNum);
   const w = size;
@@ -816,13 +833,20 @@ function StatsCard({ dayNum, streak, mood = "happy", size = 150, accentColor = T
   const isSad = mood === "sad";
   const isExcited = mood === "excited";
   const dark = tier.id === "legend";
-  const silhouette = dark ? "#000000" : "#171722";
+  const compact = size < 100; // thumbnails (tier rows, milestones) skip OVR/stat detail — no room to render it legibly
+
+  const momentum    = Math.max(20, Math.min(99, Math.round(streak * 3 + 20)));
+  const consistency = consistencyPct ?? Math.max(30, Math.min(99, Math.round((streak / Math.max(1, dayNum)) * 100)));
+  const recovery     = recoveryPct ?? 75;
+  const progress      = progressPct ?? Math.max(5, Math.min(99, Math.round((dayNum / 90) * 100)));
+  const ovr = Math.round((momentum + consistency + recovery + progress) / 4);
+
   return (
     <div style={{
       width: w, height: h, borderRadius: w * 0.09, position: "relative", overflow: "hidden",
       background: `linear-gradient(155deg, ${tier.primary} 0%, ${tier.secondary} 55%, ${tier.primary} 100%)`,
       border: `${Math.max(2, w * 0.016)}px solid ${tier.secondary}`,
-      boxShadow: `0 0 ${w*0.18}px ${tier.glow}55, 0 8px 20px rgba(0,0,0,0.5)`,
+      boxShadow: `0 0 ${w*0.1}px ${T.neon}45, 0 0 ${w*0.18}px ${tier.glow}55, 0 8px 20px rgba(0,0,0,0.5)`,
       filter: isSad ? "grayscale(0.6) brightness(0.78)" : "none",
     }}>
       {/* diagonal swoosh accent band */}
@@ -848,12 +872,13 @@ function StatsCard({ dayNum, streak, mood = "happy", size = 150, accentColor = T
         fontWeight: 900, letterSpacing: "1px", color: dark ? tier.secondary : "#1A1A22",
         background: "rgba(255,255,255,0.35)", borderRadius: 20, padding: "3px 8px", textTransform: "uppercase",
       }}>{tier.label}</div>
-      {/* sport icon badge */}
-      <div style={{
-        position: "absolute", top: w * 0.06, left: w * 0.06, width: w * 0.16, height: w * 0.16,
-        borderRadius: "50%", background: "rgba(0,0,0,0.35)", display: "flex", alignItems: "center",
-        justifyContent: "center", fontSize: w * 0.09,
-      }}>{sportIcon}</div>
+      {/* OVR rating — FIFA-style, top-left, full size only */}
+      {!compact && (
+        <div style={{ position: "absolute", top: w * 0.05, left: w * 0.05, textAlign: "center" }}>
+          <div style={{ fontWeight: 900, fontSize: w * 0.17, lineHeight: 1, color: dark ? T.neon : "#1A1A22", textShadow: dark ? shadow.neon : "none" }}>{ovr}</div>
+          <div style={{ fontSize: Math.max(7, w * 0.032), fontWeight: 800, letterSpacing: "1.5px", color: dark ? "#EDEDF5" : "#3A3A48" }}>OVR</div>
+        </div>
+      )}
       {isExcited && (
         <div style={{
           position: "absolute", top: w * 0.02, left: -w * 0.32, width: w * 0.85, textAlign: "center",
@@ -861,27 +886,43 @@ function StatsCard({ dayNum, streak, mood = "happy", size = 150, accentColor = T
           fontSize: Math.max(7, w * 0.055), letterSpacing: "0.5px", padding: "3px 0", boxShadow: shadow.neon,
         }}>PERFECT DAY</div>
       )}
-      {/* athlete silhouette (geometric primitives) */}
-      <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} style={{ position: "absolute", left: 0, top: 0 }}>
-        <g transform={`translate(${w*0.5},${h*0.28})`} fill={silhouette} opacity={0.92}>
-          <circle cx={0} cy={0} r={w*0.09} />
-          <path d={`M ${-w*0.16},${h*0.08} Q 0,${-h*0.02} ${w*0.16},${h*0.08} L ${w*0.13},${h*0.30} Q 0,${h*0.34} ${-w*0.13},${h*0.30} Z`} />
-          <rect x={-w*0.30} y={h*0.06} width={w*0.10} height={h*0.20} rx={w*0.04} transform={`rotate(18 ${-w*0.25} ${h*0.10})`} />
-          <rect x={w*0.20} y={h*0.06} width={w*0.10} height={h*0.20} rx={w*0.04} transform={`rotate(-18 ${w*0.25} ${h*0.10})`} />
-          <rect x={-w*0.13} y={h*0.32} width={w*0.11} height={h*0.24} rx={w*0.045} />
-          <rect x={w*0.02} y={h*0.32} width={w*0.11} height={h*0.24} rx={w*0.045} />
-        </g>
-      </svg>
+      {/* sport emblem — glowing crest with energy rings + motion lines */}
+      <div style={{ position: "absolute", left: "50%", top: h * 0.16, transform: "translateX(-50%)", width: w * 0.5, height: w * 0.5, display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div style={{ position: "absolute", width: "100%", height: "100%", borderRadius: "50%", background: `radial-gradient(circle, ${accentColor}45 0%, transparent 70%)` }} />
+        <div style={{ position: "absolute", width: "100%", height: w * 0.022, background: accentColor, opacity: 0.5, transform: "rotate(20deg)", borderRadius: 4 }} />
+        <div style={{ position: "absolute", width: "80%", height: w * 0.016, background: accentColor, opacity: 0.35, transform: "rotate(20deg) translateY(160%)", borderRadius: 4 }} />
+        <div style={{ position: "absolute", width: "100%", height: "100%", borderRadius: "50%", border: `${Math.max(1, w * 0.01)}px solid ${accentColor}55` }} />
+        <div style={{ position: "absolute", width: "78%", height: "78%", borderRadius: "50%", border: `${Math.max(1, w * 0.008)}px solid ${accentColor}80` }} />
+        <div style={{
+          position: "relative", width: "60%", height: "60%", borderRadius: "50%",
+          background: dark ? "#0A0A0F" : "rgba(0,0,0,0.42)", display: "flex", alignItems: "center", justifyContent: "center",
+          fontSize: w * 0.26, boxShadow: `0 0 ${w*0.06}px ${accentColor}70, inset 0 0 ${w*0.03}px rgba(0,0,0,0.6)`,
+        }}>{sportIcon}</div>
+      </div>
       {/* hero streak stat */}
       <div style={{
         position: "absolute", left: 0, right: 0, top: h * 0.56, textAlign: "center",
       }}>
         <div style={{
-          fontWeight: 900, fontSize: w * 0.42, lineHeight: 1, color: accentColor,
+          fontWeight: 900, fontSize: w * (compact ? 0.42 : 0.36), lineHeight: 1, color: accentColor,
           textShadow: `0 0 ${w*0.08}px ${accentColor}90, 0 2px 4px rgba(0,0,0,0.5)`,
         }}>{streak}</div>
         <div style={{ fontSize: Math.max(8, w*0.06), fontWeight: 800, letterSpacing: "2px", color: dark ? "#EDEDF5" : "#2A2A38", textTransform: "uppercase", marginTop: 2 }}>Day Streak</div>
       </div>
+      {/* FIFA-style attribute row — real stats, full size only */}
+      {!compact && (
+        <div style={{ position: "absolute", left: "6%", right: "6%", top: h * 0.75, display: "flex", justifyContent: "space-between" }}>
+          {([["CON", consistency], ["MOM", momentum], ["REC", recovery], ["PRG", progress]] as [string, number][]).map(([label, val]) => (
+            <div key={label} style={{ textAlign: "center", flex: 1 }}>
+              <div style={{ fontWeight: 900, fontSize: Math.max(9, w * 0.075), color: dark ? "#F0F0F8" : "#1A1A22" }}>{val}</div>
+              <div style={{ fontSize: Math.max(6, w * 0.032), fontWeight: 800, letterSpacing: "1px", color: dark ? "#AEB3C4" : "#5A5A6A" }}>{label}</div>
+              <div style={{ marginTop: 2, height: Math.max(2, w * 0.012), background: "rgba(0,0,0,0.25)", borderRadius: 2, overflow: "hidden" }}>
+                <div style={{ width: `${val}%`, height: "100%", background: accentColor }} />
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
       {/* bottom nameplate bar */}
       <div style={{
         position: "absolute", left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.45)",
@@ -1552,6 +1593,28 @@ function AppDashboard({ saved, onReset, onUpgrade, onOpenAccount, authUser }: {
   const yesterdayTotal = showYesterdayRecap ? DAY_PROTOCOLS[yesterdayDayNum % DAY_PROTOCOLS.length].length : 0;
   const yesterdayDone = saved.completedTasks?.[yesterdayKey]?.filter(Boolean).length ?? 0;
   const yesterdaySuccess = showYesterdayRecap && yesterdayTotal > 0 && yesterdayDone === yesterdayTotal;
+  // Real Trading Card attributes — CON is the % of logged days where every
+  // task got checked off, REC is supplement/protocol adherence across all
+  // logged days. Both come straight from the actual history in `saved`, so
+  // the card's ratings reflect real behavior rather than being decorative.
+  const cardConsistencyPct = (() => {
+    const entries = Object.entries(saved.completedTasks || {});
+    if (!entries.length) return undefined;
+    let fullDays = 0;
+    for (const [dateKey, arr] of entries) {
+      const dNum = Math.max(1, daysBetween(saved.startDate, dateKey) + 1);
+      const expected = DAY_PROTOCOLS[dNum % DAY_PROTOCOLS.length]?.length || arr.length;
+      if (expected > 0 && arr.filter(Boolean).length >= expected) fullDays++;
+    }
+    return Math.round((fullDays / entries.length) * 100);
+  })();
+  const cardRecoveryPct = (() => {
+    const entries = Object.entries(saved.suppChecked || {});
+    if (!entries.length) return undefined;
+    let total = 0, done = 0;
+    for (const [, arr] of entries) { total += arr.length; done += arr.filter(Boolean).length; }
+    return total > 0 ? Math.round((done / total) * 100) : undefined;
+  })();
   const handleLike = (postId: string) => {
     setPosts(prev => prev.map(p => p.id === postId ? { ...p, likes: p.likedByMe ? p.likes - 1 : p.likes + 1, likedByMe: !p.likedByMe } : p));
   };
@@ -1587,11 +1650,23 @@ function AppDashboard({ saved, onReset, onUpgrade, onOpenAccount, authUser }: {
             </div>
           </div>
           {trialActive && (
-            <button onClick={() => setTab("card")} style={{ width: "100%", display: "flex", alignItems: "center", gap: 8, background: T.neonL, border: `1px solid ${T.neon}50`, borderRadius: 12, padding: "10px 12px", marginBottom: 16, cursor: "pointer", textAlign: "left" }}>
-              <Clock size={15} color={T.neon} style={{ flexShrink: 0 }} />
-              <span style={{ fontSize: 12, fontWeight: 700, color: T.textPrimary, flex: 1 }}>Elite trial — {trialTimeLabel}</span>
-              <ChevronRight size={14} color={T.neon} />
-            </button>
+            <div style={{ marginBottom: 16 }}>
+              <button onClick={() => setTab("card")} style={{ width: "100%", display: "flex", alignItems: "center", gap: 8, background: T.neonL, border: `1px solid ${T.neon}50`, borderRadius: 12, padding: "10px 12px", cursor: "pointer", textAlign: "left" }}>
+                <Clock size={15} color={T.neon} style={{ flexShrink: 0 }} />
+                <span style={{ fontSize: 12, fontWeight: 700, color: T.textPrimary, flex: 1 }}>Elite trial — {trialTimeLabel}</span>
+                <ChevronRight size={14} color={T.neon} />
+              </button>
+              {/* This device's clock keeps running through a closed tab or a
+                  refresh either way — signing in is what protects it if this
+                  device's storage ever gets cleared (private browsing, a
+                  cleared cache, a new device). */}
+              {!authUser && (
+                <button onClick={onOpenAccount} style={{ width: "100%", background: "none", border: "none", cursor: "pointer", fontSize: 11, padding: "6px 4px 0", textAlign: "left" }}>
+                  <span style={{ color: T.textMuted }}>Using a different device or browser later? </span>
+                  <span style={{ color: T.neon, fontWeight: 700 }}>Sign in to protect your trial →</span>
+                </button>
+              )}
+            </div>
           )}
           {trialExpired && (
             <div style={{ display: "flex", alignItems: "center", gap: 8, background: T.surface, border: `1px solid ${T.border}`, borderRadius: 12, padding: "10px 12px", marginBottom: 16 }}>
@@ -1602,7 +1677,7 @@ function AppDashboard({ saved, onReset, onUpgrade, onOpenAccount, authUser }: {
           {eliteActive && saved.card && (
             <NeonCard style={{ marginBottom: 16 }}>
               <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-                <StatsCard dayNum={dayNum} streak={saved.streak} mood={cardMood} size={72} accentColor={saved.card.accentColor} sportIcon={sport?.icon || "🏆"} />
+                <StatsCard dayNum={dayNum} streak={saved.streak} mood={cardMood} size={72} accentColor={saved.card.accentColor} sportIcon={sport?.icon || "🏆"} consistencyPct={cardConsistencyPct} recoveryPct={cardRecoveryPct} progressPct={pct} />
                 <div style={{ flex: 1 }}>
                   <div style={{fontWeight:800,fontSize:10,color:T.neon,marginBottom:4,letterSpacing:"1px"}}>{saved.card.nickname.toUpperCase()} SAYS</div>
                   <p style={{ fontSize: 13, color: T.textPrimary, lineHeight: 1.5, fontStyle: "italic", margin: 0 }}>{cardQuote}</p>
@@ -1686,7 +1761,12 @@ function AppDashboard({ saved, onReset, onUpgrade, onOpenAccount, authUser }: {
               </div>
             </Card>
           )}
-          <button onClick={() => { if (window.confirm("Reset recovery plan? All progress cleared.")) onReset(); }}
+          <button onClick={() => {
+              const warning = trialActive
+                ? `You still have ${trialTimeLabel} left on your Elite trial. Resetting ends it early and it can't be restarted — Reset recovery plan anyway? All progress cleared.`
+                : "Reset recovery plan? All progress cleared.";
+              if (window.confirm(warning)) onReset();
+            }}
             style={{ width: "100%", padding: "10px", borderRadius: 12, background: "transparent", color: T.textMuted, fontSize: 12, fontWeight: 600, border: `1px solid ${T.border}`, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
             <RotateCcw size={13} /> Start a new recovery plan
           </button>
@@ -1731,7 +1811,7 @@ function AppDashboard({ saved, onReset, onUpgrade, onOpenAccount, authUser }: {
                 <div style={{ fontSize: 40, marginBottom: 8 }}>🎉</div>
                 <div style={{ fontWeight: 900, fontSize: 18, color: T.neon, marginBottom: 4, textShadow: shadow.neon }}>Day Complete!</div>
                 <div style={{ fontSize: 13, color: T.textSecondary }}>Every task done. Your body is healing. See you tomorrow.</div>
-                {eliteActive && saved.card && <div style={{ marginTop:12,display:"flex",justifyContent:"center" }}><StatsCard dayNum={dayNum} streak={saved.streak} mood="excited" size={80} accentColor={saved.card.accentColor} sportIcon={sport?.icon || "🏆"} /></div>}
+                {eliteActive && saved.card && <div style={{ marginTop:12,display:"flex",justifyContent:"center" }}><StatsCard dayNum={dayNum} streak={saved.streak} mood="excited" size={80} accentColor={saved.card.accentColor} sportIcon={sport?.icon || "🏆"} consistencyPct={cardConsistencyPct} recoveryPct={cardRecoveryPct} progressPct={pct} /></div>}
               </Card>
             )}
           </div>
@@ -1910,7 +1990,7 @@ function AppDashboard({ saved, onReset, onUpgrade, onOpenAccount, authUser }: {
               </p>
               <div style={{ display: "flex", justifyContent: "center", marginBottom: 20 }}>
                 <div style={{ background: T.surface, borderRadius: 24, padding: 24, border: `2px solid ${T.neon}50`, boxShadow: shadow.neon, display: "inline-flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
-                  <StatsCard dayNum={dayNum} streak={saved.streak} mood={cardMood} size={170} accentColor={saved.card.accentColor} sportIcon={sport?.icon || "🏆"} />
+                  <StatsCard dayNum={dayNum} streak={saved.streak} mood={cardMood} size={170} accentColor={saved.card.accentColor} sportIcon={sport?.icon || "🏆"} consistencyPct={cardConsistencyPct} recoveryPct={cardRecoveryPct} progressPct={pct} />
                   <div style={{ textAlign: "center" }}>
                     <div style={{ fontWeight:800, fontSize:14, color:T.neon, textShadow:shadow.neon }}>{saved.card.nickname}</div>
                     <div style={{ fontSize:11, color:T.textMuted }}>{tier.label} Card · Day {dayNum}</div>
