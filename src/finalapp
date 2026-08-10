@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useCallback, useRef, ReactNode } from "react";
-import { Check, ChevronRight, Gauge, Users, Home, BookOpen, Dumbbell, RotateCcw, Heart, MessageCircle, Send, ArrowLeft, Lock, Crown, X, Clock, LogIn, LogOut, Cloud, User as UserIcon, UtensilsCrossed, Flame, Plus, Trash2 } from "lucide-react";
+import { Check, ChevronRight, Gauge, Users, Home, BookOpen, Dumbbell, RotateCcw, Heart, MessageCircle, Send, ArrowLeft, Lock, Crown, X, Clock, LogIn, LogOut, Cloud, User as UserIcon, UtensilsCrossed, Flame, Plus, Trash2, Bot, BookHeart, Gift, Camera } from "lucide-react";
 // Cloud account sync (optional — degrades gracefully if Firebase isn't configured yet,
 // see FIREBASE_SETUP.md). Requires `npm install firebase` in whatever project builds
 // this file. Nothing here runs unless FIREBASE_CONFIG below is filled in.
 import { initializeApp, type FirebaseApp } from "firebase/app";
 import {
   getAuth, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword,
-  signOut, sendPasswordResetEmail, type Auth, type User as FirebaseUser,
+  signOut, sendPasswordResetEmail, sendSignInLinkToEmail, isSignInWithEmailLink, signInWithEmailLink,
+  type Auth, type User as FirebaseUser,
 } from "firebase/auth";
 import { getFirestore, doc, getDoc, setDoc, type Firestore } from "firebase/firestore";
 
@@ -65,10 +66,10 @@ const TRIAL_HOURS = 12;
 // reload, tab getting killed in the background, etc.) drops the user back
 // on the same tab instead of resetting to Home every time.
 const TAB_KEY = "comeback_pro_tab_v1";
-function loadLastTab(): "home" | "today" | "protocol" | "squad" | "score" {
+function loadLastTab(): "rewards" | "home" | "protocol" | "today" | "squad" | "diary" | "score" {
   try {
     const t = localStorage.getItem(TAB_KEY);
-    if (t === "home" || t === "today" || t === "protocol" || t === "squad" || t === "score") return t;
+    if (t === "rewards" || t === "home" || t === "today" || t === "protocol" || t === "squad" || t === "diary" || t === "score") return t;
   } catch {}
   return "home";
 }
@@ -100,6 +101,16 @@ interface DailyLog {
   meals: MealEntry[];
   exercises: ExerciseEntry[];
 }
+// One entry per calendar day, keyed by date string — a day's entry is written
+// once and never overwritten by a later day, so the journal reads back as a
+// real day-by-day history instead of a single mutable "today" note.
+interface DiaryEntry {
+  date: string;
+  prompt: string;
+  answer: string;
+  photoDataUrl?: string | null;
+  savedAt: string;
+}
 interface SavedState {
   sportId: string;
   injuryId: string;
@@ -115,7 +126,16 @@ interface SavedState {
   // MyFitnessPal-style daily food + exercise log, keyed by date string. Feeds
   // the Elite Recovery Score's calorie-alignment component below.
   dailyLogs: Record<string, DailyLog>;
+  // Diary — self-reflection journal, keyed by date string. Feeds the diary
+  // component of the Recovery Score below (see computeRecoveryScore).
+  diaryEntries: Record<string, DiaryEntry>;
   posts: Record<string, Post[]>;
+  // Rewards — see REWARDS section below for tier logic + the consent contract
+  // this gates on. rewardsConsent is set once the user checks the single
+  // "I understand and agree" box; rewardClaim is set once they pick a gift
+  // card brand and claim, and is permanent (claiming again just re-shows it).
+  rewardsConsent?: { agreedAt: string } | null;
+  rewardClaim?: { claimedAt: string; giftCardAmount: number; tee: boolean; brand: string } | null;
   plan: "pro" | "elite" | "trial";
   licenseCode: string;
   // Set only while plan === "trial" — a 12h Elite preview, no payment or
@@ -137,6 +157,32 @@ function offsetDateStr(base: string, days: number): string {
   const d = new Date(base);
   d.setUTCDate(d.getUTCDate() + days);
   return d.toISOString().slice(0, 10);
+}
+// Downscales + re-encodes a photo before it goes into localStorage/Firestore as
+// a data URL. Diary photos are stored one per day for the whole recovery
+// timeline, so keeping each one small (long edge capped, JPEG quality 0.72) is
+// what keeps that from silently blowing past localStorage's ~5-10MB ceiling.
+function compressImageToDataUrl(file: File, maxDim = 480, quality = 0.72): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(reader.error);
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error("Could not read that image."));
+      img.onload = () => {
+        const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.round(img.width * scale);
+        canvas.height = Math.round(img.height * scale);
+        const ctx = canvas.getContext("2d");
+        if (!ctx) { reject(new Error("Canvas not supported.")); return; }
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL("image/jpeg", quality));
+      };
+      img.src = reader.result as string;
+    };
+    reader.readAsDataURL(file);
+  });
 }
 function loadState(): SavedState | null {
   try {
@@ -220,7 +266,7 @@ const PRO_FEATURES = [
 ];
 const ELITE_FEATURES = [
   "Everything in Pro, plus:",
-  "Recovery Score — a live 1–100 score (red/yellow/green, just like a credit score) built from your real task completion and how well your calories match your target",
+  "Recovery Score — a live 1–100 score with a needle that moves as you improve, built from your real task completion and how well your calories match your target",
   "Full daily food + exercise log — track every meal and workout, MyFitnessPal-style, and watch your score respond",
   "Priority support",
 ];
@@ -339,6 +385,51 @@ async function sendResetEmail(email: string): Promise<{ ok: boolean; error?: str
   if (!firebaseAuth) return { ok: false, error: "Cloud sync isn't set up yet." };
   try { await sendPasswordResetEmail(firebaseAuth, email); return { ok: true }; }
   catch (err: any) { return { ok: false, error: friendlyAuthError(err?.code) }; }
+}
+// ── Passwordless email sign-in ("send me a code to log back in") ──────────────
+// Firebase's built-in email-link sign-in is the no-new-backend way to deliver
+// this: no password to remember, no Cloud Function / SMS provider to stand up.
+// A real typed 6-digit numeric code would need a custom backend (a function to
+// generate + store + verify it, plus a transactional email sender) — out of
+// scope while this stays on Firebase's free tier, so this substitutes Firebase's
+// own passwordless flow, which is the same "get emailed something that logs
+// you back in" experience the user asked for.
+const EMAIL_LINK_STORAGE_KEY = "cbk_email_for_signin";
+async function sendEmailSignInLink(email: string): Promise<{ ok: boolean; error?: string }> {
+  if (!firebaseAuth) return { ok: false, error: "Cloud sync isn't set up yet." };
+  try {
+    await sendSignInLinkToEmail(firebaseAuth, email, {
+      url: window.location.href,
+      handleCodeInApp: true,
+    });
+    try { window.localStorage.setItem(EMAIL_LINK_STORAGE_KEY, email); } catch {}
+    return { ok: true };
+  } catch (err: any) {
+    return { ok: false, error: friendlyAuthError(err?.code) };
+  }
+}
+// Call once on app load. If the current URL is a Firebase sign-in link, finishes
+// the sign-in automatically (using the email saved on this device when the link
+// was requested) and strips the auth params from the URL so a refresh doesn't
+// try to replay it. If the link was opened on a different device/browser than
+// the one that requested it, we don't have the saved email, so we ask for it —
+// Firebase requires the *same* email the link was generated for.
+async function completeEmailLinkSignInIfNeeded(): Promise<void> {
+  if (!firebaseAuth) return;
+  if (!isSignInWithEmailLink(firebaseAuth, window.location.href)) return;
+  let email: string | null = null;
+  try { email = window.localStorage.getItem(EMAIL_LINK_STORAGE_KEY); } catch {}
+  if (!email) email = window.prompt("Enter the email you used to request this sign-in link:");
+  if (!email) return;
+  try {
+    await signInWithEmailLink(firebaseAuth, email, window.location.href);
+    try { window.localStorage.removeItem(EMAIL_LINK_STORAGE_KEY); } catch {}
+  } catch {
+    // Swallow — a bad/expired link just leaves the user on the normal sign-in
+    // screen instead of crashing the app.
+  } finally {
+    window.history.replaceState(null, "", window.location.pathname);
+  }
 }
 function friendlyAuthError(code?: string): string {
   switch (code) {
@@ -544,6 +635,72 @@ const DAILY_CONTENT = [
   {type:"motivation",quote:"Small progress is still progress. Keep going.",text:"Recovery Wisdom"},
   {type:"verse",quote:"Well done, good and faithful servant.",text:"Matthew 25:23"},
 ];
+// ── DIARY prompts ────────────────────────────────────────────────────────────
+// One rotates in each day (by day number), covering feelings/emotions, goal
+// adherence, and where the athlete sees themselves going — per-day answers are
+// stored separately (see DiaryEntry) so nothing here overwrites a prior day.
+const DIARY_PROMPTS = [
+  "How are you feeling today — physically and mentally?",
+  "What emotion has been strongest for you today, and why do you think that is?",
+  "Are you keeping up with your recovery goals this week? Be honest with yourself.",
+  "Picture the day you're back playing again. How good do you think that's going to feel?",
+  "What's pulling at you today — doubt, motivation, boredom, excitement? Sit with it for a second.",
+  "Do you see yourself playing varsity, making a college team, or going further once you're back? What does that look like?",
+  "What's one small win from today that you don't want to forget?",
+  "What's the hardest part of recovery for you right now?",
+  "Who or what has been keeping you going today?",
+  "If today's version of you could talk to the day-one version of you, what would you say?",
+  "What are you most looking forward to about being back on the field or court?",
+  "On a scale of 1-10, how mentally tough did today feel — and why that number?",
+  "What's something about your body or your mindset that surprised you this week?",
+  "What would it mean to you — and the people around you — to complete this comeback?",
+];
+// ── REWARDS ──────────────────────────────────────────────────────────────────
+// Profitability check (why these numbers hold up as "reasonable profit," not
+// just picked to sound generous): a reward is paid out exactly once, only
+// after a subscriber has paid for every month of their ENTIRE recovery
+// program with no cancellation or refund. A 50-day (~1.7mo) Pro recovery
+// collects roughly 2 x $9.99 ≈ $20 before a $15 reward ships — thin but
+// positive. A 90-day (~3mo) Pro recovery collects ~$30 before a $25 reward —
+// comfortably positive. Elite's higher $28.99/mo is what funds its bigger
+// $25-$50 + tee reward: even a <50-day (~1mo) Elite recovery collects ~$29
+// before a $25+tee reward ships, and longer recoveries (the norm for real
+// injuries — see INJURIES below, 6-36+ weeks) collect several months of
+// revenue first. Short recoveries are the tightest-margin case, which is
+// exactly why they're tied to the cheaper tier and long recoveries to the
+// pricier one.
+//
+// IMPORTANT — a real limitation, not swept under the rug: nothing in this
+// file (or the Stripe webhook in license-tools/webhook/) currently detects a
+// cancellation or refund AFTER a license code has been issued. The webhook
+// only listens for `checkout.session.completed` (issuing a code), not
+// `customer.subscription.deleted` or `charge.refunded`. So "no reward if
+// canceled/refunded" is enforced by the CONTRACT the user agrees to below,
+// not by the app technically checking Stripe in real time. Actually closing
+// that gap means extending the webhook to listen for those two additional
+// event types and write a revocation record somewhere this app (or whoever
+// fulfills claims) can check — worth doing before real money changes hands
+// at any scale, and flagged here rather than presented as already solved.
+const GIFT_CARD_BRANDS = ["Amazon", "Target", "Best Buy", "Nike", "Dick's Sporting Goods", "Visa"];
+function getRewardTier(plan: "pro" | "elite" | "trial", totalRecoveryDays: number): { giftCardAmount: number; tee: boolean; label: string } | null {
+  if (plan === "trial") return null; // a free trial never had a real subscription behind it — no reward
+  const longRecovery = totalRecoveryDays > 50;
+  if (plan === "pro") {
+    return longRecovery
+      ? { giftCardAmount: 25, tee: false, label: "$25 gift card" }
+      : { giftCardAmount: 15, tee: false, label: "$15 gift card" };
+  }
+  return longRecovery
+    ? { giftCardAmount: 50, tee: true, label: "$50 gift card + Comeback tee" }
+    : { giftCardAmount: 25, tee: true, label: "$25 gift card + Comeback tee" };
+}
+const REWARDS_CONTRACT_SECTIONS: { title: string; body: string }[] = [
+  { title: "How it unlocks", body: "Your reward unlocks only once you reach and complete the very last day of your full recovery program — not before, and not partially for finishing part of it." },
+  { title: "Cancellations & refunds", body: "If your subscription is canceled or any payment on it is refunded at any point, you forfeit the reward entirely for that program — no gift card, no apparel — even if you'd already completed some or all of the days." },
+  { title: "One reward per completed program", body: "Rewards are tied to a single completed recovery program per subscription. Once you pick a gift card brand and claim your reward, that choice is final." },
+  { title: "Photo & story consent", body: "By checking the box below, you consent to Comeback using your name, photo, and recovery journey (including anything you share in Diary or Squad) in Comeback's marketing and on social media, without additional compensation. This consent applies regardless of your age." },
+  { title: "Not a substitute for legal advice", body: "This is a plain-language summary of how the rewards program works, not a binding contract drafted or reviewed by a lawyer. Comeback strongly recommends getting a real rewards-program and likeness-consent agreement reviewed by an attorney before real money or merchandise is on the line, especially since anyone of any age can take part." },
+];
 const MILESTONES = [
   {day:1,badge:"🌱",title:"Day One",reward:"You started. That is the hardest step.",verse:"Be strong and courageous — Joshua 1:9"},
   {day:3,badge:"🔥",title:"3 Days",reward:"Resilience Badge unlocked.",verse:"I can do all things through Christ — Phil 4:13"},
@@ -673,6 +830,39 @@ function seedPosts(sportId: string): Post[] {
   return all[sportId] || [
     {id:"g1",author:"Recovery Community",msg:`Welcome to the ${sportId} recovery squad! Drop your injury and how many days in you are. Let us support each other.`,likes:0,likedByMe:false,timestamp:new Date().toISOString(),replies:[]},
   ];
+}
+// Squad already ships with a simulated community (the seeded posts/replies above,
+// from prior sessions) so new posts never land in an empty feed. This extends that
+// same pattern to posts the current user writes: shortly after posting, a squadmate
+// replies with something contextual to what was written, picked by simple keyword
+// match against a small supportive-reply bank.
+const SQUAD_NAMES = ["Marcus T.", "Tina M.", "Jake M.", "Kyle R.", "DeShawn W.", "Trevor B.", "Alicia P.", "Sam D.", "Jordan L.", "Nina R.", "Darius K."];
+const SQUAD_REPLY_BANK: { keywords: string[]; replies: string[] }[] = [
+  { keywords: ["pain", "hurt", "sore", "ache", "swoll"], replies: [
+    "That soreness eased up for me too right around this point — stick with the protocol, it's normal.",
+    "Ice plus the mobility block in today's tasks helped me a ton with that exact feeling.",
+  ] },
+  { keywords: ["scared", "worried", "nervous", "doubt", "frustrated", "hard", "tough", "setback", "behind"], replies: [
+    "That feeling is so normal at this stage — you're not behind, you're right on track.",
+    "Rough stretches happen to basically everyone in here. Keep showing up, it turns.",
+  ] },
+  { keywords: ["?", "how", "when", "anyone", "advice", "question"], replies: [
+    "For me it clicked once I stopped skipping the evening mobility block — worth trying.",
+    "Everyone's timeline is a little different, but trust the phases in your Protocol tab.",
+  ] },
+  { keywords: ["day", "week", "month", "cleared", "pr", "record", "milestone", "progress", "back"], replies: [
+    "That's real progress — keep logging it, you'll want to look back on this later.",
+    "Love seeing this. Consistency is doing more for you than you probably realize right now.",
+  ] },
+];
+function getSquadAutoReply(msg: string): { author: string; text: string } {
+  const text = msg.toLowerCase();
+  const matched = SQUAD_REPLY_BANK.filter(b => b.keywords.some(k => text.includes(k)));
+  const pool = (matched.length ? matched : SQUAD_REPLY_BANK).flatMap(b => b.replies);
+  return {
+    author: SQUAD_NAMES[Math.floor(Math.random() * SQUAD_NAMES.length)],
+    text: pool[Math.floor(Math.random() * pool.length)],
+  };
 }
 function calcMacros(heightFt:string, heightIn:string, weightLbs:string, gender:string, goal:string) {
   const ft = parseFloat(heightFt); const inch = parseFloat(heightIn) || 0; const lbs = parseFloat(weightLbs);
@@ -841,11 +1031,17 @@ function TaskCard({ task, checked, onToggle }: { task: Task; checked: boolean; o
     </div>
   );
 }
+// Sized for a 7-tab bar (3 NavBtns either side of the center Today button).
+// flex:1 + minWidth:0 makes each button claim an equal, shrinkable share of
+// the bar instead of a fixed width, so 6 of these plus the center button
+// divide the full bar width evenly on any screen instead of overflowing it;
+// the label truncates with an ellipsis rather than colliding with its
+// neighbor if a device is narrower than ~340px.
 function NavBtn({ icon, label, active, onClick }: { icon: ReactNode; label: string; active: boolean; onClick: () => void }) {
   return (
-    <button onClick={onClick} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3, padding: "4px 10px", background: "none", border: "none", cursor: "pointer" }}>
+    <button onClick={onClick} style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", alignItems: "center", gap: 2, padding: "3px 2px", background: "none", border: "none", cursor: "pointer" }}>
       <div style={{ color: active ? T.neon : T.textMuted, filter: active ? `drop-shadow(0 0 6px ${T.neon})` : "none" }}>{icon}</div>
-      <span style={{ fontSize: 10, fontWeight: 700, color: active ? T.neon : T.textMuted, textShadow: active ? shadow.neon : "none" }}>{label}</span>
+      <span style={{ fontSize: 9, fontWeight: 700, color: active ? T.neon : T.textMuted, textShadow: active ? shadow.neon : "none", maxWidth: "100%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{label}</span>
     </button>
   );
 }
@@ -856,7 +1052,7 @@ function NavBtn({ icon, label, active, onClick }: { icon: ReactNode; label: stri
 // actually completes their daily protocol tasks, and (2) how closely their
 // logged calories track the target their own height/weight/goal produce via
 // calcMacros(). Nothing here is cosmetic — a 90 score means real adherence.
-function computeRecoveryScore(saved: SavedState, macros: { calories: number } | null): { score: number; taskScore: number; calorieScore: number | null } {
+function computeRecoveryScore(saved: SavedState, macros: { calories: number } | null): { score: number; taskScore: number; calorieScore: number | null; diaryScore: number | null } {
   // Task-completion component: total tasks actually checked off vs. total
   // tasks that were on the schedule, across every day that's been logged.
   const taskEntries = Object.entries(saved.completedTasks || {});
@@ -888,8 +1084,28 @@ function computeRecoveryScore(saved: SavedState, macros: { calories: number } | 
     }
     if (dayScores.length) calorieScore = Math.round(dayScores.reduce((a, b) => a + b, 0) / dayScores.length);
   }
-  const score = calorieScore != null ? Math.round(taskScore * 0.6 + calorieScore * 0.4) : taskScore;
-  return { score: Math.max(1, Math.min(100, score)), taskScore, calorieScore };
+  // Diary component: what fraction of the days elapsed so far in this recovery
+  // (from startDate through today) have a completed Diary entry. Each date is
+  // its own key, so a day already saved never gets re-scored by a later day —
+  // this is a running completion rate over the whole timeline, not a one-day
+  // toggle, same principle as the task-completion component above.
+  let diaryScore: number | null = null;
+  const diaryDoneCount = Object.keys(saved.diaryEntries || {}).length;
+  if (diaryDoneCount > 0) {
+    const elapsedDays = Math.max(1, daysBetween(saved.startDate, todayStr()) + 1);
+    diaryScore = Math.max(0, Math.min(100, Math.round((diaryDoneCount / elapsedDays) * 100)));
+  }
+  let score: number;
+  if (calorieScore != null && diaryScore != null) {
+    score = Math.round(taskScore * 0.5 + calorieScore * 0.25 + diaryScore * 0.25);
+  } else if (calorieScore != null) {
+    score = Math.round(taskScore * 0.6 + calorieScore * 0.4);
+  } else if (diaryScore != null) {
+    score = Math.round(taskScore * 0.7 + diaryScore * 0.3);
+  } else {
+    score = taskScore;
+  }
+  return { score: Math.max(1, Math.min(100, score)), taskScore, calorieScore, diaryScore };
 }
 function scoreBand(score: number): { label: string; color: string } {
   if (score <= 40) return { label: "NEEDS WORK", color: T.red };
@@ -932,7 +1148,7 @@ const COACH_QUOTES: Record<string,string[]> = {
 // Semicircle gauge, red -> yellow -> green bands, with a needle that actually
 // points at the real computed score. This is the emotional centerpiece of
 // Elite: a number people can watch climb as they stay consistent, the same
-// way a credit score climbs with good habits.
+// way consistent habits pay off over time.
 function polarPoint(cx: number, cy: number, r: number, angleDeg: number) {
   const rad = (angleDeg * Math.PI) / 180;
   return { x: cx + r * Math.sin(rad), y: cy - r * Math.cos(rad) };
@@ -967,8 +1183,7 @@ function RecoveryScoreGauge({ score, size = 220 }: { score: number; size?: numbe
         <text x={hundredLabel.x} y={hundredLabel.y + 4} fontSize={Math.max(8, w * 0.04)} fontWeight={800} fill={T.textMuted} textAnchor="middle">100</text>
         <line x1={cx} y1={cy} x2={tip.x} y2={tip.y} stroke={T.textPrimary} strokeWidth={Math.max(2.5, w * 0.018)} strokeLinecap="round" />
         <circle cx={cx} cy={cy} r={Math.max(5, w * 0.032)} fill={T.textPrimary} stroke={T.bg} strokeWidth={2} />
-        <text x={cx} y={cy - r * 0.42} fontSize={w * 0.17} fontWeight={900} fill={band.color} textAnchor="middle">{clamped}</text>
-        <text x={cx} y={cy - r * 0.42 + w * 0.065} fontSize={Math.max(9, w * 0.042)} fontWeight={800} fill={band.color} textAnchor="middle" style={{ letterSpacing: "1.5px" }}>{band.label}</text>
+        <text x={cx} y={cy - r * 0.32} fontSize={w * 0.19} fontWeight={900} fill={band.color} textAnchor="middle">{clamped}</text>
       </svg>
     </div>
   );
@@ -1142,6 +1357,9 @@ function Welcome({ onNext, onSignIn }: { onNext: () => void; onSignIn: () => voi
           </h1>
           <p style={{ fontSize: 15, color: T.textSecondary, lineHeight: 1.6, maxWidth: 300, margin: "0 auto" }}>
             Science-backed recovery. Personalised nutrition. Choose Pro or go Elite for your own live Recovery Score.
+          </p>
+          <p style={{ fontSize: 12, fontWeight: 800, color: T.neon, letterSpacing: "0.3px", lineHeight: 1.5, maxWidth: 300, margin: "10px auto 0" }}>
+            The leading app in sports injury recovery — helping athletes get back to their prime, every single day.
           </p>
         </div>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "center", marginBottom: 32 }}>
@@ -1365,6 +1583,17 @@ function Paywall({ onUnlock, onBack, onTrial }: { onUnlock: (plan: "pro" | "elit
             <div style={{ textAlign: "center", fontSize: 11, color: T.textMuted, marginTop: 10 }}>You've already used your free Elite trial</div>
           )}
         </div>
+        <div style={{ background: T.surface, borderRadius: 16, padding: 16, border: `1px solid ${T.border}`, marginBottom: 14 }}>
+          <p style={{ fontSize: 12, color: T.textSecondary, lineHeight: 1.6, margin: 0 }}>
+            A single physical therapy session or personal-training hour can run $50–$150+. A full month of Comeback's science-backed recovery system costs less than one of those visits — Pro or Elite.
+          </p>
+          <p style={{ fontSize: 12, color: T.textSecondary, lineHeight: 1.6, margin: "10px 0 0" }}>
+            Personal trainers and physical therapists aren't the enemy — they're valuable. Comeback just gives you a built-in, science-backed system that gets you there for a fraction of the cost.
+          </p>
+          <p style={{ fontSize: 11, color: T.textMuted, lineHeight: 1.6, margin: "10px 0 0", fontStyle: "italic" }}>
+            Comeback is not a doctor and isn't a substitute for medical care — always get examined and cleared by a licensed physician before and throughout your recovery. Plenty of users find their doctor is impressed by the progress they've tracked along the way.
+          </p>
+        </div>
         <div style={{ background: T.surface, borderRadius: 16, padding: 16, border: `1px solid ${T.border}` }}>
           <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
             <Lock size={13} color={T.textMuted} />
@@ -1410,7 +1639,7 @@ function EliteUpgradeInline({ onUpgrade }: { onUpgrade: (code: string) => void }
     <div style={{ textAlign: "center", padding: "24px 4px" }}>
       <h2 style={{ fontWeight: 900, fontSize: 20, color: T.textPrimary, marginBottom: 8 }}>Go Elite to unlock your Recovery Score</h2>
       <p style={{ fontSize: 13, color: T.textSecondary, marginBottom: 16, lineHeight: 1.6 }}>
-        A live 1–100 score — red, yellow, green, just like a credit score — built from your real task completion and how well your calories track your target. Plus a full daily food and exercise log to drive it.
+        A live 1–100 score — red, yellow, green, with a needle that moves as you improve — built from your real task completion and how well your calories track your target. Plus a full daily food and exercise log to drive it.
       </p>
       <div style={{ display: "flex", justifyContent: "center", marginBottom: 20, opacity: 0.55, filter: "grayscale(0.3)" }}>
         <RecoveryScoreGauge score={78} size={190} />
@@ -1438,7 +1667,7 @@ function AccountPanel({ onClose, authUser }: {
   onClose: () => void;
   authUser: FirebaseUser | null;
 }) {
-  const [mode, setMode] = useState<"signin" | "signup" | "reset">("signin");
+  const [mode, setMode] = useState<"signin" | "signup" | "reset" | "link">("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
@@ -1451,13 +1680,20 @@ function AccountPanel({ onClose, authUser }: {
   // there's exactly one merge per sign-in, not a duplicate race between this
   // panel and that subscription.
   const handleSubmit = async () => {
-    if (!email.trim() || (mode !== "reset" && !password)) return;
+    if (!email.trim() || (mode === "signin" || mode === "signup") && !password) return;
     setBusy(true); setError(null); setInfo(null);
     if (mode === "reset") {
       const r = await sendResetEmail(email.trim());
       setBusy(false);
       if (r.ok) setInfo("Check your inbox for a password reset link.");
       else setError(r.error || "Couldn't send that reset email.");
+      return;
+    }
+    if (mode === "link") {
+      const r = await sendEmailSignInLink(email.trim());
+      setBusy(false);
+      if (r.ok) setInfo("Check your inbox — tap the link we sent to finish signing in on this device.");
+      else setError(r.error || "Couldn't send that sign-in link.");
       return;
     }
     const r = mode === "signup" ? await signUpWithEmail(email.trim(), password) : await signInWithEmail(email.trim(), password);
@@ -1508,19 +1744,26 @@ function AccountPanel({ onClose, authUser }: {
             </div>
             <input value={email} onChange={e => setEmail(e.target.value)} placeholder="Email" type="email"
               style={{ width: "100%", padding: "12px 14px", borderRadius: 10, border: `1.5px solid ${T.border}`, background: T.card, color: T.textPrimary, fontSize: 13, outline: "none", boxSizing: "border-box", marginBottom: 8 }} />
-            {mode !== "reset" && (
+            {(mode === "signin" || mode === "signup") && (
               <input value={password} onChange={e => setPassword(e.target.value)} placeholder="Password" type="password"
                 style={{ width: "100%", padding: "12px 14px", borderRadius: 10, border: `1.5px solid ${T.border}`, background: T.card, color: T.textPrimary, fontSize: 13, outline: "none", boxSizing: "border-box", marginBottom: 8 }} />
             )}
+            {mode === "link" && (
+              <div style={{ fontSize: 11, color: T.textMuted, marginBottom: 8, lineHeight: 1.5 }}>No password needed — we'll email you a secure link that signs you straight back in on this device.</div>
+            )}
             {error && <div style={{ fontSize: 11, color: T.red, marginBottom: 8 }}>{error}</div>}
             {info && <div style={{ fontSize: 11, color: T.neon, marginBottom: 8 }}>{info}</div>}
-            <button onClick={handleSubmit} disabled={busy || !email.trim() || (mode !== "reset" && !password)}
+            <button onClick={handleSubmit} disabled={busy || !email.trim() || ((mode === "signin" || mode === "signup") && !password)}
               style={{ width: "100%", padding: 13, borderRadius: 12, background: T.neon, color: T.bg, fontWeight: 800, fontSize: 14, border: "none", cursor: busy ? "default" : "pointer", boxShadow: shadow.neon, marginBottom: 10, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, opacity: busy ? 0.7 : 1 }}>
-              <LogIn size={15} /> {busy ? "Please wait…" : mode === "reset" ? "Send reset email" : mode === "signup" ? "Create account" : "Sign in"}
+              <LogIn size={15} /> {busy ? "Please wait…" : mode === "reset" ? "Send reset email" : mode === "link" ? "Email me a sign-in link" : mode === "signup" ? "Create account" : "Sign in"}
             </button>
-            {mode !== "reset" ? (
+            {mode === "signin" && (
+              <button onClick={() => { setMode("link"); setError(null); setInfo(null); }} style={{ width: "100%", background: "none", border: "none", color: T.neon, fontSize: 11, fontWeight: 700, cursor: "pointer", marginBottom: 6 }}>Skip the password — email me a sign-in link</button>
+            )}
+            {mode !== "reset" && mode !== "link" && (
               <button onClick={() => { setMode("reset"); setError(null); setInfo(null); }} style={{ width: "100%", background: "none", border: "none", color: T.textMuted, fontSize: 11, cursor: "pointer" }}>Forgot password?</button>
-            ) : (
+            )}
+            {(mode === "reset" || mode === "link") && (
               <button onClick={() => { setMode("signin"); setError(null); setInfo(null); }} style={{ width: "100%", background: "none", border: "none", color: T.textMuted, fontSize: 11, cursor: "pointer" }}>← Back to sign in</button>
             )}
           </div>
@@ -1535,8 +1778,8 @@ function AppDashboard({ saved, onReset, onUpgrade, onOpenAccount, authUser }: {
   saved: SavedState; onReset: () => void; onUpgrade: (code: string) => void;
   onOpenAccount: () => void; authUser: FirebaseUser | null;
 }) {
-  const [tab, setTabRaw] = useState<"home" | "today" | "protocol" | "squad" | "score">(() => loadLastTab());
-  const setTab = useCallback((t: "home" | "today" | "protocol" | "squad" | "score") => {
+  const [tab, setTabRaw] = useState<"rewards" | "home" | "protocol" | "today" | "squad" | "diary" | "score">(() => loadLastTab());
+  const setTab = useCallback((t: "rewards" | "home" | "protocol" | "today" | "squad" | "diary" | "score") => {
     setTabRaw(t); saveLastTab(t);
   }, []);
   // Ticks every 30s purely to force a re-render so the Elite-trial countdown
@@ -1575,7 +1818,9 @@ function AppDashboard({ saved, onReset, onUpgrade, onOpenAccount, authUser }: {
   const severity = SEVERITIES.find(s => s.id === saved.severityId);
   const dayNum  = Math.max(1, daysBetween(saved.startDate, todayStr()) + 1);
   const phase   = dayNum <= 42 ? 1 : dayNum <= 112 ? 2 : 3;
-  const pct     = Math.min(100, Math.round((dayNum / ((injury?.weeks || 36) * 7)) * 100));
+  const totalRecoveryDays = (injury?.weeks || 36) * 7;
+  const pct     = Math.min(100, Math.round((dayNum / totalRecoveryDays) * 100));
+  const recoveryComplete = dayNum >= totalRecoveryDays;
   const weekNum = Math.ceil(dayNum / 7);
   const todayKey = todayStr();
   const tasks = DAY_PROTOCOLS[dayNum % DAY_PROTOCOLS.length];
@@ -1656,6 +1901,49 @@ function AppDashboard({ saved, onReset, onUpgrade, onOpenAccount, authUser }: {
       return next;
     });
   }, [todayKey]);
+  // ── Diary (Elite) ───────────────────────────────────────────────────────────
+  const diaryPrompt = DIARY_PROMPTS[dayNum % DIARY_PROMPTS.length];
+  const [diaryToday, setDiaryToday] = useState<DiaryEntry | null>(() => {
+    const s = loadState(); return s?.diaryEntries?.[todayKey] || null;
+  });
+  const [diaryHistory, setDiaryHistory] = useState<Record<string, DiaryEntry>>(() => {
+    const s = loadState(); return s?.diaryEntries || {};
+  });
+  const saveDiaryEntry = useCallback((answer: string, photoDataUrl: string | null) => {
+    const entry: DiaryEntry = { date: todayKey, prompt: diaryPrompt, answer, photoDataUrl, savedAt: new Date().toISOString() };
+    setDiaryToday(entry);
+    setDiaryHistory(prev => ({ ...prev, [todayKey]: entry }));
+    const s = loadState();
+    if (s) { s.diaryEntries = s.diaryEntries || {}; s.diaryEntries[todayKey] = entry; saveState(s); }
+  }, [todayKey, diaryPrompt]);
+  const [diaryDraftAnswer, setDiaryDraftAnswer] = useState(() => diaryToday?.answer || "");
+  const [diaryDraftPhoto, setDiaryDraftPhoto] = useState<string | null>(() => diaryToday?.photoDataUrl || null);
+  const [diaryPhotoBusy, setDiaryPhotoBusy] = useState(false);
+  const [diaryPhotoError, setDiaryPhotoError] = useState<string | null>(null);
+  const handleDiaryPhotoChange = useCallback(async (file: File | undefined) => {
+    if (!file) return;
+    setDiaryPhotoBusy(true); setDiaryPhotoError(null);
+    try { setDiaryDraftPhoto(await compressImageToDataUrl(file)); }
+    catch { setDiaryPhotoError("Couldn't load that photo — try a different one."); }
+    finally { setDiaryPhotoBusy(false); }
+  }, []);
+  // ── Rewards (Pro + Elite) ───────────────────────────────────────────────────
+  const [rewardsConsent, setRewardsConsent] = useState(saved.rewardsConsent || null);
+  const [rewardClaim, setRewardClaim] = useState(saved.rewardClaim || null);
+  const [rewardBrandDraft, setRewardBrandDraft] = useState(GIFT_CARD_BRANDS[0]);
+  const [rewardsAgreeChecked, setRewardsAgreeChecked] = useState(false);
+  const agreeToRewardsContract = useCallback(() => {
+    const consent = { agreedAt: new Date().toISOString() };
+    setRewardsConsent(consent);
+    const s = loadState();
+    if (s) { s.rewardsConsent = consent; saveState(s); }
+  }, []);
+  const claimReward = useCallback((giftCardAmount: number, tee: boolean, brand: string) => {
+    const claim = { claimedAt: new Date().toISOString(), giftCardAmount, tee, brand };
+    setRewardClaim(claim);
+    const s = loadState();
+    if (s) { s.rewardClaim = claim; saveState(s); }
+  }, []);
   // Recovery Score — recomputed live off today's actual in-session state
   // (checked tasks + today's log) layered on top of the saved history, so
   // checking off a task or logging a meal moves the needle immediately
@@ -1664,6 +1952,7 @@ function AppDashboard({ saved, onReset, onUpgrade, onOpenAccount, authUser }: {
     ...saved,
     completedTasks: { ...saved.completedTasks, [todayKey]: checked },
     dailyLogs: { ...saved.dailyLogs, [todayKey]: todayLog },
+    diaryEntries: diaryHistory,
   };
   const recoveryScore = computeRecoveryScore(scoreInputState, macros);
   const handleLike = (postId: string) => {
@@ -1682,9 +1971,114 @@ function AppDashboard({ saved, onReset, onUpgrade, onOpenAccount, authUser }: {
     setNewPost("");
     const s = loadState();
     if (s) { s.posts = s.posts || {}; s.posts[saved.sportId] = [post, ...(s.posts[saved.sportId] || [])]; saveState(s); }
+    // A squadmate replies a few seconds later so a new post never just sits
+    // there with zero engagement — same simulated-community pattern as the
+    // pre-seeded posts/replies already in this feed.
+    const autoReply = getSquadAutoReply(post.msg);
+    setTimeout(() => {
+      const reply = { author: autoReply.author, msg: autoReply.text, timestamp: new Date().toISOString() };
+      setPosts(prev => prev.map(p => p.id === post.id ? { ...p, replies: [...p.replies, reply] } : p));
+      const s2 = loadState();
+      if (s2?.posts?.[saved.sportId]) {
+        s2.posts[saved.sportId] = s2.posts[saved.sportId].map(p => p.id === post.id ? { ...p, replies: [...p.replies, reply] } : p);
+        saveState(s2);
+      }
+    }, 3000 + Math.random() * 4000);
   };
   const renderTab = () => {
     switch (tab) {
+      case "rewards": return (
+        <div style={{ flex: 1, overflowY: "auto", background: T.bg, padding: "20px 18px 100px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+            <Gift size={22} color={T.neon} />
+            <h1 style={{ fontWeight: 900, fontSize: 22, color: T.textPrimary, margin: 0 }}>Rewards</h1>
+          </div>
+          <p style={{ fontSize: 13, color: T.textSecondary, marginBottom: 16 }}>Finish your full recovery program and claim a real reward — a gift card, and a Comeback tee on Elite.</p>
+          {saved.plan === "trial" ? (
+            <Card style={{ textAlign: "center", padding: "24px 16px" }}>
+              <p style={{ fontSize: 13, color: T.textSecondary, marginBottom: 16, lineHeight: 1.6 }}>Rewards are for Pro and Elite subscribers — your free trial doesn't have a paid plan behind it yet, so there's nothing to earn a reward against. Upgrade to start earning yours.</p>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button onClick={() => window.open(PLAN_PRO_URL, "_blank")} style={{ flex: 1, padding: 12, borderRadius: 10, background: T.textPrimary, color: T.bg, fontWeight: 800, fontSize: 12, border: "none", cursor: "pointer" }}>Get Pro</button>
+                <button onClick={() => window.open(PLAN_ELITE_URL, "_blank")} style={{ flex: 1, padding: 12, borderRadius: 10, background: T.neon, color: T.bg, fontWeight: 800, fontSize: 12, border: "none", cursor: "pointer", boxShadow: shadow.neon }}>Get Elite</button>
+              </div>
+            </Card>
+          ) : (() => {
+            const tier = getRewardTier(saved.plan, totalRecoveryDays);
+            if (!tier) return null;
+            return (
+              <>
+                <NeonCard style={{ marginBottom: 16 }}>
+                  <div style={{ fontWeight: 800, fontSize: 10, color: T.neon, marginBottom: 8, letterSpacing: "1px" }}>YOUR REWARD</div>
+                  <div style={{ fontWeight: 900, fontSize: 22, color: T.textPrimary, marginBottom: 6 }}>{tier.label}</div>
+                  <div style={{ fontSize: 12, color: T.textSecondary, lineHeight: 1.5 }}>
+                    Based on your {injury?.label.toLowerCase() || "injury"} recovery running {totalRecoveryDays} days on the {saved.plan === "elite" ? "Elite" : "Pro"} plan.
+                  </div>
+                </NeonCard>
+                <Card style={{ marginBottom: 16 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: T.textPrimary }}>Program progress</span>
+                    <span style={{ fontSize: 12, fontWeight: 800, color: T.neon }}>Day {Math.min(dayNum, totalRecoveryDays)} / {totalRecoveryDays}</span>
+                  </div>
+                  <div style={{ height: 8, borderRadius: 4, background: T.border, overflow: "hidden" }}>
+                    <div style={{ height: "100%", width: `${pct}%`, background: T.neon, boxShadow: shadow.neon, borderRadius: 4 }} />
+                  </div>
+                  {!recoveryComplete && (
+                    <div style={{ fontSize: 11, color: T.textMuted, marginTop: 8 }}>{totalRecoveryDays - dayNum} day{totalRecoveryDays - dayNum === 1 ? "" : "s"} to go until your reward unlocks.</div>
+                  )}
+                </Card>
+                {!recoveryComplete ? (
+                  <div style={{ display: "flex", gap: 10, alignItems: "flex-start", background: T.surface, border: `1px solid ${T.border}`, borderRadius: 14, padding: 14 }}>
+                    <Lock size={16} color={T.textMuted} style={{ flexShrink: 0, marginTop: 2 }} />
+                    <p style={{ fontSize: 12, color: T.textSecondary, margin: 0, lineHeight: 1.5 }}>Your reward stays locked until you complete the very last day of your program. Stay subscribed the whole way through — cancelling or getting refunded forfeits it.</p>
+                  </div>
+                ) : rewardClaim ? (
+                  <NeonCard>
+                    <div style={{ fontWeight: 900, fontSize: 16, color: T.neon, marginBottom: 6 }}>✓ Reward claimed</div>
+                    <p style={{ fontSize: 13, color: T.textSecondary, lineHeight: 1.6, marginBottom: 8 }}>
+                      {rewardClaim.brand} ${rewardClaim.giftCardAmount} gift card{rewardClaim.tee ? " + Comeback tee" : ""} — claimed {new Date(rewardClaim.claimedAt).toLocaleDateString()}.
+                    </p>
+                    <p style={{ fontSize: 11, color: T.textMuted, lineHeight: 1.6 }}>The Comeback team fulfills claims by email — reach out to {CURTIS_CONTACT.email} if you don't hear back within a few days.</p>
+                  </NeonCard>
+                ) : !rewardsConsent ? (
+                  <NeonCard>
+                    <div style={{ fontWeight: 900, fontSize: 16, color: T.textPrimary, marginBottom: 10 }}>🎉 You finished your program — review your Rewards Agreement to claim it</div>
+                    {REWARDS_CONTRACT_SECTIONS.map((sec, i) => (
+                      <div key={i} style={{ marginBottom: 10 }}>
+                        <div style={{ fontWeight: 800, fontSize: 12, color: T.neon, marginBottom: 2 }}>{sec.title}</div>
+                        <p style={{ fontSize: 12, color: T.textSecondary, lineHeight: 1.55, margin: 0 }}>{sec.body}</p>
+                      </div>
+                    ))}
+                    <label style={{ display: "flex", gap: 8, alignItems: "flex-start", marginTop: 12, marginBottom: 12, cursor: "pointer" }}>
+                      <input type="checkbox" checked={rewardsAgreeChecked} onChange={e => setRewardsAgreeChecked(e.target.checked)} style={{ marginTop: 3, flexShrink: 0, width: 16, height: 16 }} />
+                      <span style={{ fontSize: 12, color: T.textPrimary, lineHeight: 1.5 }}>I've read and understand the terms above — including that I forfeit my reward if I cancel or get refunded — and I consent to Comeback using my photo and recovery story in its marketing.</span>
+                    </label>
+                    <button onClick={agreeToRewardsContract} disabled={!rewardsAgreeChecked}
+                      style={{ width: "100%", padding: 13, borderRadius: 12, background: rewardsAgreeChecked ? T.neon : T.border, color: rewardsAgreeChecked ? T.bg : T.textMuted, fontWeight: 800, fontSize: 13, border: "none", cursor: rewardsAgreeChecked ? "pointer" : "not-allowed", boxShadow: rewardsAgreeChecked ? shadow.neon : "none" }}>
+                      I agree — continue to claim my reward
+                    </button>
+                  </NeonCard>
+                ) : (
+                  <NeonCard>
+                    <div style={{ fontWeight: 900, fontSize: 16, color: T.textPrimary, marginBottom: 10 }}>Choose your gift card</div>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 14 }}>
+                      {GIFT_CARD_BRANDS.map(b => (
+                        <button key={b} onClick={() => setRewardBrandDraft(b)}
+                          style={{ padding: "8px 14px", borderRadius: 10, border: `1.5px solid ${rewardBrandDraft === b ? T.neon : T.border}`, background: rewardBrandDraft === b ? T.neonL : "transparent", color: rewardBrandDraft === b ? T.neon : T.textSecondary, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>
+                          {b}
+                        </button>
+                      ))}
+                    </div>
+                    <button onClick={() => claimReward(tier.giftCardAmount, tier.tee, rewardBrandDraft)}
+                      style={{ width: "100%", padding: 13, borderRadius: 12, background: T.neon, color: T.bg, fontWeight: 800, fontSize: 13, border: "none", cursor: "pointer", boxShadow: shadow.neon }}>
+                      Claim my {tier.label} ({rewardBrandDraft})
+                    </button>
+                  </NeonCard>
+                )}
+              </>
+            );
+          })()}
+        </div>
+      );
       case "home": return (
         <div style={{ flex: 1, overflowY: "auto", background: T.bg, padding: "20px 18px 100px" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
@@ -2013,6 +2407,69 @@ function AppDashboard({ saved, onReset, onUpgrade, onOpenAccount, authUser }: {
           ))}
         </div>
       );
+      case "diary": return (
+        <div style={{ flex: 1, overflowY: "auto", background: T.bg, padding: "20px 18px 100px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+            <BookHeart size={22} color={T.neon} />
+            <h1 style={{ fontWeight: 900, fontSize: 22, color: T.textPrimary, margin: 0 }}>Diary</h1>
+          </div>
+          <p style={{ fontSize: 13, color: T.textSecondary, marginBottom: 16 }}>A personal space to reflect — your own words, saved day by day. Nothing here is shared to Squad.</p>
+          {!eliteActive ? (
+            <EliteUpgradeInline onUpgrade={onUpgrade} />
+          ) : (
+            <>
+              <NeonCard style={{ marginBottom: 16 }}>
+                <div style={{ fontWeight: 800, fontSize: 10, color: T.neon, marginBottom: 8, letterSpacing: "1px" }}>TODAY'S PROMPT</div>
+                <p style={{ fontSize: 15, fontWeight: 700, color: T.textPrimary, lineHeight: 1.5, margin: "0 0 12px" }}>{diaryPrompt}</p>
+                <textarea value={diaryDraftAnswer} onChange={e => setDiaryDraftAnswer(e.target.value)}
+                  placeholder="Write whatever's true for you today…"
+                  style={{ width: "100%", minHeight: 110, borderRadius: 12, border: `1.5px solid ${T.border}`, background: T.card, color: T.textPrimary, fontSize: 13, lineHeight: 1.6, padding: 12, outline: "none", resize: "vertical", fontFamily: "inherit", boxSizing: "border-box", marginBottom: 10 }} />
+                {diaryDraftPhoto && (
+                  <div style={{ position: "relative", display: "inline-block", marginBottom: 10 }}>
+                    <img src={diaryDraftPhoto} alt="Diary attachment" style={{ width: 90, height: 90, objectFit: "cover", borderRadius: 12, border: `1px solid ${T.border}` }} />
+                    <button onClick={() => setDiaryDraftPhoto(null)} style={{ position: "absolute", top: -6, right: -6, width: 22, height: 22, borderRadius: 11, background: T.red, border: `2px solid ${T.bg}`, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
+                      <X size={12} color="white" />
+                    </button>
+                  </div>
+                )}
+                {diaryPhotoError && <div style={{ fontSize: 11, color: T.red, marginBottom: 8 }}>{diaryPhotoError}</div>}
+                <div style={{ display: "flex", gap: 8 }}>
+                  <label style={{ display: "flex", alignItems: "center", gap: 6, padding: "10px 14px", borderRadius: 10, background: "transparent", border: `1.5px dashed ${T.border}`, color: T.textSecondary, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>
+                    <Camera size={14} /> {diaryPhotoBusy ? "Loading…" : diaryDraftPhoto ? "Change photo" : "Add a photo"}
+                    <input type="file" accept="image/*" onChange={e => handleDiaryPhotoChange(e.target.files?.[0])} style={{ display: "none" }} disabled={diaryPhotoBusy} />
+                  </label>
+                  <button onClick={() => saveDiaryEntry(diaryDraftAnswer.trim(), diaryDraftPhoto)} disabled={!diaryDraftAnswer.trim()}
+                    style={{ flex: 1, padding: "10px 14px", borderRadius: 10, background: diaryDraftAnswer.trim() ? T.neon : T.border, color: diaryDraftAnswer.trim() ? T.bg : T.textMuted, fontWeight: 800, fontSize: 12, border: "none", cursor: diaryDraftAnswer.trim() ? "pointer" : "not-allowed", boxShadow: diaryDraftAnswer.trim() ? shadow.neon : "none" }}>
+                    {diaryToday ? "Update today's entry" : "Save entry"}
+                  </button>
+                </div>
+                {diaryToday && (
+                  <div style={{ marginTop: 10, fontSize: 11, color: T.neon, fontWeight: 700 }}>✓ Saved for today — this also counts toward your Recovery Score.</div>
+                )}
+              </NeonCard>
+              <h2 style={{ fontWeight: 900, fontSize: 16, color: T.textPrimary, marginBottom: 10 }}>Past entries</h2>
+              {Object.values(diaryHistory).filter(e => e.date !== todayKey).length === 0 ? (
+                <p style={{ fontSize: 12, color: T.textMuted }}>Nothing yet — your saved entries will build up here, one per day.</p>
+              ) : (
+                Object.values(diaryHistory)
+                  .filter(e => e.date !== todayKey)
+                  .sort((a, b) => b.date.localeCompare(a.date))
+                  .map(entry => (
+                    <Card key={entry.date} style={{ marginBottom: 10 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 6 }}>
+                        <span style={{ fontWeight: 800, fontSize: 12, color: T.textPrimary }}>{new Date(entry.date).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}</span>
+                        <span style={{ fontSize: 10, color: T.textMuted }}>Day {Math.max(1, daysBetween(saved.startDate, entry.date) + 1)}</span>
+                      </div>
+                      <div style={{ fontSize: 11, fontStyle: "italic", color: T.textMuted, marginBottom: 6 }}>{entry.prompt}</div>
+                      <p style={{ fontSize: 13, color: T.textSecondary, lineHeight: 1.5, margin: entry.photoDataUrl ? "0 0 8px" : 0 }}>{entry.answer}</p>
+                      {entry.photoDataUrl && <img src={entry.photoDataUrl} alt="" style={{ width: 70, height: 70, objectFit: "cover", borderRadius: 10, border: `1px solid ${T.border}` }} />}
+                    </Card>
+                  ))
+              )}
+            </>
+          )}
+        </div>
+      );
       case "score": return (
         <div style={{ flex: 1, overflowY: "auto", background: T.bg, padding: "20px 18px 100px" }}>
           {trialExpired && (
@@ -2032,25 +2489,35 @@ function AppDashboard({ saved, onReset, onUpgrade, onOpenAccount, authUser }: {
             <>
               <h1 style={{ fontWeight:900, fontSize:22, color:T.textPrimary, marginBottom:4 }}>Your Recovery Score</h1>
               <p style={{ fontSize:13, color:T.textSecondary, marginBottom:16 }}>
-                Live, just like a credit score — built from your real task completion and how well your calories track your target.
+                Live and always moving — built from your real task completion, how well your calories track your target, and your daily diary check-ins.
               </p>
               <div style={{ display: "flex", justifyContent: "center", marginBottom: 16 }}>
                 <div style={{ background: T.surface, borderRadius: 24, padding: "24px 20px", border: `2px solid ${T.neon}50`, boxShadow: shadow.neon, display: "inline-flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
                   <RecoveryScoreGauge score={recoveryScore.score} size={200} />
                 </div>
               </div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16 }}>
-                <Card style={{ textAlign: "center" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 16 }}>
+                <Card style={{ textAlign: "center", padding: "14px 8px" }}>
                   <div style={{ fontWeight: 900, fontSize: 20, color: scoreBand(recoveryScore.taskScore).color }}>{recoveryScore.taskScore}</div>
-                  <div style={{ fontSize: 10, color: T.textMuted, fontWeight: 700, marginTop: 2 }}>TASK COMPLETION</div>
+                  <div style={{ fontSize: 9, color: T.textMuted, fontWeight: 700, marginTop: 2 }}>TASKS</div>
                 </Card>
-                <Card style={{ textAlign: "center" }}>
+                <Card style={{ textAlign: "center", padding: "14px 8px" }}>
                   <div style={{ fontWeight: 900, fontSize: 20, color: recoveryScore.calorieScore != null ? scoreBand(recoveryScore.calorieScore).color : T.textMuted }}>{recoveryScore.calorieScore ?? "—"}</div>
-                  <div style={{ fontSize: 10, color: T.textMuted, fontWeight: 700, marginTop: 2 }}>CALORIE MATCH</div>
+                  <div style={{ fontSize: 9, color: T.textMuted, fontWeight: 700, marginTop: 2 }}>CALORIES</div>
+                </Card>
+                <Card style={{ textAlign: "center", padding: "14px 8px" }}>
+                  <div style={{ fontWeight: 900, fontSize: 20, color: recoveryScore.diaryScore != null ? scoreBand(recoveryScore.diaryScore).color : T.textMuted }}>{recoveryScore.diaryScore ?? "—"}</div>
+                  <div style={{ fontSize: 9, color: T.textMuted, fontWeight: 700, marginTop: 2 }}>DIARY</div>
                 </Card>
               </div>
-              {recoveryScore.calorieScore == null && (
-                <div style={{ fontSize: 11, color: T.textMuted, marginBottom: 16, textAlign: "center" }}>Log a few meals below (and set up your Body Profile in Protocol) to activate the calorie-match half of your score.</div>
+              {(recoveryScore.calorieScore == null || recoveryScore.diaryScore == null) && (
+                <div style={{ fontSize: 11, color: T.textMuted, marginBottom: 16, textAlign: "center" }}>
+                  {recoveryScore.calorieScore == null && recoveryScore.diaryScore == null
+                    ? "Log a meal below and write your first Diary entry to activate the rest of your score."
+                    : recoveryScore.calorieScore == null
+                    ? "Log a few meals below (and set up your Body Profile in Protocol) to activate the calorie half of your score."
+                    : "Write your first Diary entry to activate that part of your score."}
+                </div>
               )}
               <NeonCard style={{ marginBottom: 20 }}>
                 <div style={{fontWeight:800,fontSize:10,color:T.neon,marginBottom:8,letterSpacing:"1px"}}>YOUR COACH SAYS</div>
@@ -2099,17 +2566,188 @@ function AppDashboard({ saved, onReset, onUpgrade, onOpenAccount, authUser }: {
   return (
     <div style={{ height: "100%", display: "flex", flexDirection: "column", background: T.bg }}>
       <div style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column", minHeight: 0 }}>{renderTab()}</div>
-      <div style={{ flexShrink: 0, background: T.surface, borderTop: `1px solid ${T.border}`, paddingBottom: "env(safe-area-inset-bottom,12px)", paddingTop: 10, paddingLeft: 4, paddingRight: 4, display: "flex", justifyContent: "space-around", alignItems: "flex-end", zIndex: 50 }}>
-        <NavBtn icon={<Home size={20} />}     label="Home"     active={tab === "home"}     onClick={() => setTab("home")} />
-        <NavBtn icon={<BookOpen size={20} />} label="Protocol" active={tab === "protocol"} onClick={() => setTab("protocol")} />
-        <button onClick={() => setTab("today")} style={{ width: 56, height: 56, borderRadius: 28, background: tab === "today" ? T.neon : T.card, display: "flex", alignItems: "center", justifyContent: "center", border: `2px solid ${tab === "today" ? T.neon : T.border}`, boxShadow: tab === "today" ? shadow.neon : shadow.sm, cursor: "pointer", marginBottom: 4, flexShrink: 0 }}>
-          <Dumbbell size={22} color={tab === "today" ? T.bg : T.textSecondary} />
+      {/* 7 sections total — 3 on each side of the center Today button, per the
+          user's "3 sections on both sides of the middle one" spec. Rewards
+          sits next to Home (left side); Diary sits next to Squad (right
+          side). justifyContent: space-between + each NavBtn's flex:1 (see
+          NavBtn above) is what keeps 7 items from overlapping at mobile
+          widths — they divide the bar evenly instead of stacking up. */}
+      <div style={{ flexShrink: 0, background: T.surface, borderTop: `1px solid ${T.border}`, paddingBottom: "env(safe-area-inset-bottom,12px)", paddingTop: 8, paddingLeft: 2, paddingRight: 2, display: "flex", justifyContent: "space-between", alignItems: "flex-end", zIndex: 50 }}>
+        <NavBtn icon={<Gift size={17} />}     label="Rewards"  active={tab === "rewards"}  onClick={() => setTab("rewards")} />
+        <NavBtn icon={<Home size={17} />}     label="Home"     active={tab === "home"}     onClick={() => setTab("home")} />
+        <NavBtn icon={<BookOpen size={17} />} label="Protocol" active={tab === "protocol"} onClick={() => setTab("protocol")} />
+        <button onClick={() => setTab("today")} style={{ width: 52, height: 52, borderRadius: 26, background: tab === "today" ? T.neon : T.card, display: "flex", alignItems: "center", justifyContent: "center", border: `2px solid ${tab === "today" ? T.neon : T.border}`, boxShadow: tab === "today" ? shadow.neon : shadow.sm, cursor: "pointer", marginBottom: 3, flexShrink: 0 }}>
+          <Dumbbell size={20} color={tab === "today" ? T.bg : T.textSecondary} />
         </button>
-        <NavBtn icon={<Users size={20} />}   label="Squad"   active={tab === "squad"}   onClick={() => setTab("squad")} />
-        <NavBtn icon={<Gauge size={20} />}   label="Score"   active={tab === "score"}   onClick={() => setTab("score")} />
+        <NavBtn icon={<Users size={17} />}    label="Squad"    active={tab === "squad"}    onClick={() => setTab("squad")} />
+        <NavBtn icon={<BookHeart size={17} />} label="Diary"   active={tab === "diary"}    onClick={() => setTab("diary")} />
+        <NavBtn icon={<Gauge size={17} />}    label="Score"    active={tab === "score"}    onClick={() => setTab("score")} />
       </div>
     </div>
   );
+}
+
+// ── CURTIS — in-app help assistant ─────────────────────────────────────────────
+// A rule-based FAQ assistant (no external AI backend required) that lives as a
+// floating button in the bottom-right of the app and answers "where do I find
+// X / how does this work / what's my plan" questions instantly and offline.
+const CURTIS_CONTACT = { phone: "929-432-8785", email: "comebacktrainer@gmail.com" };
+const CURTIS_FAQ: { keywords: string[]; answer: string }[] = [
+  { keywords: ["score", "gauge", "credit", "1-100", "number"], answer: "Your Recovery Score (1-100) lives on the Score tab. It updates live from your daily protocol completion, your nutrition logging, and — once it's built — your Diary check-ins. It reflects your whole recovery timeline, not just today." },
+  { keywords: ["plan", "subscription", "price", "cost", "pro", "elite", "upgrade", "cancel", "billing", "stripe", "refund"], answer: "Comeback has two plans: Pro ($9.99/mo) and Elite ($28.99/mo — adds your live Recovery Score, Diary, and Rewards). See full plan details any time from the Score tab. You can manage or cancel your subscription through Stripe whenever you'd like." },
+  { keywords: ["protocol", "today", "workout", "exercise", "task", "phase"], answer: "Your daily tasks live under the Today button (the big one in the middle of the bottom nav). The Protocol tab shows your whole recovery roadmap, phase by phase." },
+  { keywords: ["squad", "post", "community", "team", "reply", "like"], answer: "Squad is your community feed with athletes recovering from the same sport and injury as you — post, like, and reply right from the Squad tab." },
+  { keywords: ["diary", "journal", "feelings", "mood", "emotions", "goals"], answer: "Diary is your personal recovery journal — a new reflection prompt every day, saved day by day so nothing gets overwritten, with the option to attach a photo. Completing it also helps your Recovery Score." },
+  { keywords: ["reward", "gift card", "tee", "shirt", "prize", "amazon"], answer: "Rewards unlock once you complete your full recovery program without cancelling or getting refunded. Pro members get a $15-$25 Amazon gift card; Elite members get a $25-$50 Amazon gift card plus a Comeback tee, depending on recovery length. Full terms are on the Rewards tab." },
+  { keywords: ["streak", "fire"], answer: "Your streak grows by one every day you actually open Comeback exactly one day after your last visit. Miss a day and it resets — it only counts real, daily use." },
+  { keywords: ["sign in", "login", "log in", "account", "sync", "password", "device", "lost", "delete", "app store", "code"], answer: "Comeback isn't in an app store, so your progress never lives on just one device. Tap the account icon on the Home tab and sign in with your email — we'll send a secure one-time sign-in link, no password to remember, and everything syncs right back." },
+  { keywords: ["doctor", "medical", "injury", "safe", "hurt", "physician"], answer: "Comeback is not a doctor and isn't a substitute for medical care — always get examined and cleared by a licensed physician before and during your recovery. Think of Comeback as the structured, science-backed system that works alongside your medical care, not instead of it." },
+  { keywords: ["contact", "support", "human", "person", "phone", "email", "reach"], answer: `You can reach the Comeback team directly at ${CURTIS_CONTACT.phone} or ${CURTIS_CONTACT.email}.` },
+];
+function getCurtisReply(input: string): string {
+  const text = input.toLowerCase();
+  let best: { answer: string; score: number } | null = null;
+  for (const entry of CURTIS_FAQ) {
+    const score = entry.keywords.reduce((acc, kw) => acc + (text.includes(kw) ? 1 : 0), 0);
+    if (score > 0 && (!best || score > best.score)) best = { answer: entry.answer, score };
+  }
+  if (best) return best.answer;
+  return `I'm not totally sure on that one — try asking about your Score, Protocol, Squad, Diary, Rewards, or your plan. Or reach the team directly at ${CURTIS_CONTACT.phone} / ${CURTIS_CONTACT.email}.`;
+}
+function CurtisChat() {
+  const [open, setOpen] = useState(false);
+  const [messages, setMessages] = useState<{ from: "curtis" | "me"; text: string }[]>([
+    { from: "curtis", text: "Hey, I'm Curtis — ask me anything about how Comeback works, your plan, or where to find something in the app." },
+  ]);
+  const [input, setInput] = useState("");
+  const listRef = useRef<HTMLDivElement>(null);
+  useEffect(() => { listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: "smooth" }); }, [messages, open]);
+  const ask = (text: string) => {
+    if (!text.trim()) return;
+    setMessages(prev => [...prev, { from: "me", text }]);
+    setTimeout(() => setMessages(prev => [...prev, { from: "curtis", text: getCurtisReply(text) }]), 260);
+  };
+  const send = () => { const text = input.trim(); if (!text) return; ask(text); setInput(""); };
+  const QUICK = ["How does my Score work?", "What's in Elite?", "How do Rewards work?", "How do I sign in on a new device?"];
+  return (
+    <>
+      <button onClick={() => setOpen(o => !o)} aria-label="Chat with Curtis"
+        style={{ position: "absolute", right: 16, bottom: 92, width: 52, height: 52, borderRadius: 26, background: T.neon, border: "none", boxShadow: shadow.neon, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", zIndex: 60 }}>
+        {open ? <X size={22} color={T.bg} /> : <Bot size={24} color={T.bg} />}
+      </button>
+      {open && (
+        <div style={{ position: "absolute", right: 12, bottom: 152, width: "calc(100% - 24px)", maxWidth: 340, maxHeight: "62%", background: T.card, border: `1px solid ${T.border}`, borderRadius: 18, boxShadow: shadow.sm, display: "flex", flexDirection: "column", zIndex: 60, overflow: "hidden" }}>
+          <div style={{ padding: "12px 14px", borderBottom: `1px solid ${T.border}`, display: "flex", alignItems: "center", gap: 8, background: T.surface, flexShrink: 0 }}>
+            <Bot size={16} color={T.neon} />
+            <div style={{ fontWeight: 800, fontSize: 13, color: T.textPrimary }}>Curtis · Comeback Help</div>
+          </div>
+          <div ref={listRef} style={{ flex: 1, overflowY: "auto", padding: 12, display: "flex", flexDirection: "column", gap: 8, minHeight: 140 }}>
+            {messages.map((m, i) => (
+              <div key={i} style={{ alignSelf: m.from === "me" ? "flex-end" : "flex-start", background: m.from === "me" ? T.neon : T.surface, color: m.from === "me" ? T.bg : T.textPrimary, borderRadius: 12, padding: "8px 11px", fontSize: 12, lineHeight: 1.5, maxWidth: "85%" }}>
+                {m.text}
+              </div>
+            ))}
+          </div>
+          <div style={{ padding: "8px 10px", display: "flex", flexWrap: "wrap", gap: 6, borderTop: `1px solid ${T.border}`, flexShrink: 0 }}>
+            {QUICK.map((q, i) => (
+              <button key={i} onClick={() => ask(q)}
+                style={{ fontSize: 10, fontWeight: 700, color: T.neon, background: T.neonL, border: `1px solid ${T.neon}30`, borderRadius: 10, padding: "5px 8px", cursor: "pointer" }}>{q}</button>
+            ))}
+          </div>
+          <div style={{ padding: 10, display: "flex", gap: 6, borderTop: `1px solid ${T.border}`, flexShrink: 0 }}>
+            <input value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => { if (e.key === "Enter") send(); }}
+              placeholder="Ask Curtis anything…"
+              style={{ flex: 1, padding: "10px 12px", borderRadius: 10, border: `1px solid ${T.border}`, background: T.surface, color: T.textPrimary, fontSize: 12, outline: "none", boxSizing: "border-box" }} />
+            <button onClick={send} style={{ width: 36, height: 36, borderRadius: 10, background: T.neon, border: "none", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}>
+              <Send size={15} color={T.bg} />
+            </button>
+          </div>
+          <div style={{ padding: "8px 12px 10px", fontSize: 10, color: T.textMuted, textAlign: "center", borderTop: `1px solid ${T.border}`, flexShrink: 0 }}>
+            Need a human? {CURTIS_CONTACT.phone} · {CURTIS_CONTACT.email}
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+// ── SEO ──────────────────────────────────────────────────────────────────────
+// Everything reachable from inside this component can do: dynamic <title>, meta
+// description/keywords/OG/Twitter tags, a canonical link, a brand favicon (an
+// inline SVG data URI matching the in-app logo mark, so search results/bookmarks
+// carry the same brand), and Organization + SoftwareApplication JSON-LD so Google
+// can associate the logo/contact info with the site (the "brand recognition when
+// people search on Google" ask). This does NOT cover static <head> tags baked
+// into index.html before React mounts, robots.txt, or sitemap.xml — those live
+// outside this file; see the SEO checklist handed to the user separately.
+function SEOHead() {
+  useEffect(() => {
+    document.title = "Comeback — Sports Injury Recovery App | Personalized Recovery Plans & Live Recovery Score";
+    const description = "Comeback is the leading app in sports injury recovery, helping athletes get back to their prime. Get a personalized recovery protocol, nutrition plan, and a live Recovery Score for a fraction of the cost of a personal trainer or physical therapist. Plans from $9.99/mo. Comeback is not a doctor — always get medically examined and cleared before and during recovery.";
+    const setMeta = (attr: "name" | "property", key: string, content: string) => {
+      let tag = document.querySelector(`meta[${attr}="${key}"]`) as HTMLMetaElement | null;
+      if (!tag) { tag = document.createElement("meta"); tag.setAttribute(attr, key); document.head.appendChild(tag); }
+      tag.setAttribute("content", content);
+    };
+    setMeta("name", "description", description);
+    setMeta("name", "keywords", "sports injury recovery app, athletic injury recovery, sports rehab app, recovery score, injury recovery tracker, comeback trainer, return to play, athlete comeback app");
+    setMeta("name", "robots", "index, follow");
+    setMeta("name", "author", "Comeback");
+    setMeta("property", "og:title", "Comeback — Sports Injury Recovery App");
+    setMeta("property", "og:description", description);
+    setMeta("property", "og:type", "website");
+    setMeta("property", "og:url", "https://www.comebacktrainer.com/");
+    setMeta("property", "og:site_name", "Comeback");
+    setMeta("name", "twitter:card", "summary");
+    setMeta("name", "twitter:title", "Comeback — Sports Injury Recovery App");
+    setMeta("name", "twitter:description", description);
+
+    let canonical = document.querySelector('link[rel="canonical"]') as HTMLLinkElement | null;
+    if (!canonical) { canonical = document.createElement("link"); canonical.rel = "canonical"; document.head.appendChild(canonical); }
+    canonical.href = "https://www.comebacktrainer.com/";
+
+    const logoSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><circle cx="12" cy="12" r="11" fill="${T.bg}" stroke="${T.neon}" stroke-width="2"/><rect x="2" y="9" width="4" height="6" rx="1.5" fill="${T.neon}"/><rect x="18" y="9" width="4" height="6" rx="1.5" fill="${T.neon}"/><rect x="5" y="11" width="14" height="2" rx="1" fill="white"/><rect x="8" y="7" width="3" height="10" rx="1.5" fill="white"/><rect x="13" y="7" width="3" height="10" rx="1.5" fill="white"/></svg>`;
+    const faviconHref = `data:image/svg+xml,${encodeURIComponent(logoSvg)}`;
+    let favicon = document.querySelector('link[rel="icon"]') as HTMLLinkElement | null;
+    if (!favicon) { favicon = document.createElement("link"); favicon.rel = "icon"; document.head.appendChild(favicon); }
+    favicon.href = faviconHref;
+    setMeta("property", "og:image", faviconHref);
+
+    const ldJson = {
+      "@context": "https://schema.org",
+      "@graph": [
+        {
+          "@type": "Organization",
+          "name": "Comeback",
+          "url": "https://www.comebacktrainer.com/",
+          "logo": faviconHref,
+          "description": "Comeback builds personalized sports injury recovery programs for athletes.",
+          "contactPoint": {
+            "@type": "ContactPoint",
+            "telephone": CURTIS_CONTACT.phone,
+            "email": CURTIS_CONTACT.email,
+            "contactType": "customer support",
+          },
+        },
+        {
+          "@type": "SoftwareApplication",
+          "name": "Comeback — Sports Injury Recovery",
+          "applicationCategory": "HealthApplication",
+          "operatingSystem": "Web",
+          "url": "https://www.comebacktrainer.com/",
+          "description": description,
+          "offers": [
+            { "@type": "Offer", "name": "Pro", "price": "9.99", "priceCurrency": "USD" },
+            { "@type": "Offer", "name": "Elite", "price": "28.99", "priceCurrency": "USD" },
+          ],
+        },
+      ],
+    };
+    let ld = document.querySelector('script#comeback-ld[type="application/ld+json"]') as HTMLScriptElement | null;
+    if (!ld) { ld = document.createElement("script"); ld.type = "application/ld+json"; ld.id = "comeback-ld"; document.head.appendChild(ld); }
+    ld.textContent = JSON.stringify(ldJson);
+  }, []);
+  return null;
 }
 
 // ── MOBILE FULL-SCREEN FIX ──────────────────────────────────────────────────────
@@ -2139,10 +2777,30 @@ function GlobalMobileStyles() {
     document.body.style.height = "100%";
     (document.body.style as any).overscrollBehaviorY = "none";
   }, []);
+  // Below 700px this is a no-op (the .app-shell rule just restates the same
+  // inline styles already on the root div). At 700px+ it overrides them with
+  // !important — inline styles otherwise always win over stylesheet rules,
+  // so !important is the only way a media query can beat them. This is what
+  // turns "a phone screenshot stretched full-height on a monitor" into a
+  // proper centered desktop card with a sane fixed height, instead of a
+  // 430px-wide column awkwardly stretched to fill the entire browser height.
   return (
     <style>{`
       html, body { height: 100%; margin: 0; background: ${T.bg}; }
       body { -webkit-tap-highlight-color: transparent; overscroll-behavior-y: none; }
+      @media (min-width: 700px) {
+        .app-shell {
+          top: 50% !important;
+          transform: translate(-50%, -50%) !important;
+          width: 460px !important;
+          max-width: 460px !important;
+          height: 860px !important;
+          max-height: 92vh !important;
+          border-radius: 28px !important;
+          border: 1px solid ${T.border};
+          box-shadow: 0 40px 120px rgba(0,0,0,0.65);
+        }
+      }
     `}</style>
   );
 }
@@ -2201,6 +2859,11 @@ export default function App() {
       }
       const today = todayStr();
       let updated = s;
+      // Streak logic lives ONLY here, on app open/login. This is the single write site for
+      // `streak`/`streakAlive` in the whole app — there is no background timer or passive
+      // increment. Opening the app on the very next calendar day (diff === 1) is what grows the
+      // streak; skipping a day or more (diff > 1) breaks it back to 0. Simply having the app
+      // installed does nothing — the user must actually log in that day for it to count.
       if (s.lastActiveDate !== today) {
         const diff = daysBetween(s.lastActiveDate, today);
         let streak = s.streak; let alive = s.streakAlive;
@@ -2228,6 +2891,11 @@ export default function App() {
   // been configured (see FIREBASE_SETUP.md). On sign-in, pulls whichever
   // copy (this device's or the cloud's) has the newer `updatedAt` and adopts
   // it, so switching devices never silently loses a day's progress.
+  // Finish a passwordless email-link sign-in if this load is one (i.e. the user
+  // just tapped the link we emailed them). Must run before/alongside the
+  // onAuthStateChanged subscription below, which is what actually reacts to the
+  // resulting sign-in and pulls the user's cloud progress.
+  useEffect(() => { completeEmailLinkSignInIfNeeded(); }, []);
   useEffect(() => {
     if (!firebaseAuth) return;
     const unsub = onAuthStateChanged(firebaseAuth, async (user) => {
@@ -2250,7 +2918,8 @@ export default function App() {
     const ns: SavedState = {
       sportId: sport.id, injuryId: injury.id, severityId: severity.id, goalId: goal.id,
       startDate: today, lastActiveDate: today, streak: 1, streakAlive: true,
-      completedTasks: {}, suppChecked: {}, bodyProfile: null, dailyLogs: {}, posts: {},
+      completedTasks: {}, suppChecked: {}, bodyProfile: null, dailyLogs: {}, diaryEntries: {}, posts: {},
+      rewardsConsent: null, rewardClaim: null,
       plan, licenseCode: code,
       trialEndsAt: plan === "trial" ? Date.now() + TRIAL_HOURS * 60 * 60 * 1000 : null,
     };
@@ -2273,8 +2942,9 @@ export default function App() {
   };
 
   return (
-    <div style={{ position: "fixed", top: 0, left: "50%", transform: "translateX(-50%)", width: "100%", maxWidth: 430, height: "100dvh", overflow: "hidden", display: "flex", flexDirection: "column", fontFamily: "'Inter',sans-serif", background: T.bg, overscrollBehavior: "none" }}>
+    <div className="app-shell" style={{ position: "fixed", top: 0, left: "50%", transform: "translateX(-50%)", width: "100%", maxWidth: 430, height: "100dvh", overflow: "hidden", display: "flex", flexDirection: "column", fontFamily: "'Inter',sans-serif", background: T.bg, overscrollBehavior: "none" }}>
       <GlobalMobileStyles />
+      <SEOHead />
       {screen === "verifying" && <div style={{ flex: 1 }} />}
       {screen === "welcome"  && <div style={{ flex: 1, overflowY: "auto" }}><Welcome onNext={() => setScreen("sport")} onSignIn={() => setShowAccount(true)} /></div>}
       {screen === "sport"    && <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column" }}><SportSelect    onNext={s  => { setSport(s);    setScreen("injury");   }} onBack={() => setScreen("welcome")} /></div>}
@@ -2283,8 +2953,11 @@ export default function App() {
       {screen === "goal"     && <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column" }}><GoalSelect     onNext={g  => { setGoal(g);     setScreen("paywall");  }} onBack={() => setScreen("severity")} /></div>}
       {screen === "paywall"  && <Paywall onUnlock={handlePlanUnlock} onBack={() => setScreen("goal")} onTrial={handleTrial} />}
       {screen === "dashboard" && saved && (
-        <AppDashboard saved={saved} onReset={handleReset} onUpgrade={handleUpgradeToElite}
-          onOpenAccount={() => setShowAccount(true)} authUser={authUser} />
+        <>
+          <AppDashboard saved={saved} onReset={handleReset} onUpgrade={handleUpgradeToElite}
+            onOpenAccount={() => setShowAccount(true)} authUser={authUser} />
+          <CurtisChat />
+        </>
       )}
       {showAccount && (
         <AccountPanel onClose={() => setShowAccount(false)} authUser={authUser} />
@@ -2292,3 +2965,4 @@ export default function App() {
     </div>
   );
 }
+
