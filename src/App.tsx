@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef, ReactNode } from "react";
+import React, { useState, useEffect, useCallback, useRef, type ReactNode } from "react";
 import { Check, ChevronRight, Gauge, Users, Home, BookOpen, Dumbbell, RotateCcw, Heart, MessageCircle, Send, ArrowLeft, Lock, Crown, X, Clock, LogIn, LogOut, Cloud, User as UserIcon, UtensilsCrossed, Flame, Plus, Trash2 } from "lucide-react";
 // Cloud account sync (optional — degrades gracefully if Firebase isn't configured yet,
 // see FIREBASE_SETUP.md). Requires `npm install firebase` in whatever project builds
