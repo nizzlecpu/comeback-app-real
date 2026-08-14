@@ -656,19 +656,31 @@ const DIARY_PROMPTS = [
   "What would it mean to you — and the people around you — to complete this comeback?",
 ];
 // ── REWARDS ──────────────────────────────────────────────────────────────────
-// Profitability check (why these numbers hold up as "reasonable profit," not
-// just picked to sound generous): a reward is paid out exactly once, only
-// after a subscriber has paid for every month of their ENTIRE recovery
-// program with no cancellation or refund. A 50-day (~1.7mo) Pro recovery
-// collects roughly 2 x $9.99 ≈ $20 before a $15 reward ships — thin but
-// positive. A 90-day (~3mo) Pro recovery collects ~$30 before a $25 reward —
-// comfortably positive. Elite's higher $28.99/mo is what funds its bigger
-// $25-$50 + tee reward: even a <50-day (~1mo) Elite recovery collects ~$29
-// before a $25+tee reward ships, and longer recoveries (the norm for real
-// injuries — see INJURIES below, 6-36+ weeks) collect several months of
-// revenue first. Short recoveries are the tightest-margin case, which is
-// exactly why they're tied to the cheaper tier and long recoveries to the
-// pricier one.
+// Revised: tiers are now keyed off ACTUAL MONTHLY BILLING CYCLES COLLECTED
+// (Pro $9.99/mo, Elite $28.99/mo) instead of a flat "days > 50" cutoff. The
+// old day-based cutoff had a real hole: a fixed 50-day threshold doesn't line
+// up with monthly billing boundaries, so a program landing just past day 50
+// (e.g. an 8-week/56-day Ankle Sprain protocol) fell into the "long recovery"
+// reward tier after only 2 months paid ($19.98 Pro / $57.98 Elite revenue),
+// while that tier paid out $25 Pro / $50+tee Elite — a guaranteed LOSS on
+// both plans for that group. This version fixes that by computing exactly
+// how many monthly charges have gone through by the time the program is
+// complete, and bucketing the reward off THAT number, so the payout can never
+// outrun what's actually been collected:
+//
+//   Billing cycles paid | Pro reward | Elite reward           | Pro margin | Elite margin
+//   2  (~2mo, min. real case, e.g. 6-8wk protocols)  | $10  | $20 + tee   | ~50%  ($9.98 profit)  | ~45% ($25.98 profit)
+//   3-4 (~3-4mo, e.g. 10-16wk)                        | $15  | $30 + tee   | ~50-62%               | ~52-64%
+//   5-6 (~5-6mo, e.g. 20-24wk)                        | $20  | $40 + tee   | ~60-67%               | ~64-70%
+//   7+  (~7mo+, e.g. 26-36wk, capped here)            | $25  | $50 + tee   | 64%+ (rises with length) | 69%+ (rises with length)
+//
+// (Margins assume a ~$12 tee cost estimate — see TEE_COST_ESTIMATE below —
+// and don't account for Stripe's processing fee or the gift card's own face
+// value beyond that; update TEE_COST_ESTIMATE with your real vendor quote.)
+// The shortest real protocol in INJURIES below is 6 weeks (42 days = 2
+// cycles), so every actual injury in this app clears the worst-case 2-cycle
+// row above with real margin to spare — this isn't just true on average, it
+// holds for every single injury currently in the app.
 //
 // IMPORTANT — a real limitation, not swept under the rug: nothing in this
 // file (or the Stripe webhook in license-tools/webhook/) currently detects a
@@ -682,17 +694,29 @@ const DIARY_PROMPTS = [
 // fulfills claims) can check — worth doing before real money changes hands
 // at any scale, and flagged here rather than presented as already solved.
 const GIFT_CARD_BRANDS = ["Amazon", "Target", "Best Buy", "Nike", "Dick's Sporting Goods", "Visa"];
+const PRO_MONTHLY_PRICE = 9.99;
+const ELITE_MONTHLY_PRICE = 28.99;
+// Conservative placeholder for what a "Comeback" branded tee actually costs
+// to produce, print, and ship — swap in your real per-unit vendor quote. It's
+// only used here as a sanity check in the comment table above; it doesn't
+// change what the app charges or pays out.
+const TEE_COST_ESTIMATE = 12;
+// Monthly billing charges once on day 1 and then every 30 days after, so by
+// the time `totalDays` have elapsed this many charges have gone through.
+// Reward tiers below are bucketed off this number specifically so a payout
+// can never exceed what's actually been collected by the time it ships.
+function billingCyclesPaidByDay(totalDays: number): number {
+  return Math.floor((Math.max(1, totalDays) - 1) / 30) + 1;
+}
 function getRewardTier(plan: "pro" | "elite" | "trial", totalRecoveryDays: number): { giftCardAmount: number; tee: boolean; label: string } | null {
   if (plan === "trial") return null; // a free trial never had a real subscription behind it — no reward
-  const longRecovery = totalRecoveryDays > 50;
+  const cycles = billingCyclesPaidByDay(totalRecoveryDays);
   if (plan === "pro") {
-    return longRecovery
-      ? { giftCardAmount: 25, tee: false, label: "$25 gift card" }
-      : { giftCardAmount: 15, tee: false, label: "$15 gift card" };
+    const giftCardAmount = cycles <= 2 ? 10 : cycles <= 4 ? 15 : cycles <= 6 ? 20 : 25;
+    return { giftCardAmount, tee: false, label: `$${giftCardAmount} gift card` };
   }
-  return longRecovery
-    ? { giftCardAmount: 50, tee: true, label: "$50 gift card + Comeback tee" }
-    : { giftCardAmount: 25, tee: true, label: "$25 gift card + Comeback tee" };
+  const giftCardAmount = cycles <= 2 ? 20 : cycles <= 4 ? 30 : cycles <= 6 ? 40 : 50;
+  return { giftCardAmount, tee: true, label: `$${giftCardAmount} gift card + Comeback tee` };
 }
 const REWARDS_CONTRACT_SECTIONS: { title: string; body: string }[] = [
   { title: "How it unlocks", body: "Your reward unlocks only once you reach and complete the very last day of your full recovery program — not before, and not partially for finishing part of it." },
@@ -2598,7 +2622,7 @@ const CURTIS_FAQ: { keywords: string[]; answer: string }[] = [
   { keywords: ["protocol", "today", "workout", "exercise", "task", "phase"], answer: "Your daily tasks live under the Today button (the big one in the middle of the bottom nav). The Protocol tab shows your whole recovery roadmap, phase by phase." },
   { keywords: ["squad", "post", "community", "team", "reply", "like"], answer: "Squad is your community feed with athletes recovering from the same sport and injury as you — post, like, and reply right from the Squad tab." },
   { keywords: ["diary", "journal", "feelings", "mood", "emotions", "goals"], answer: "Diary is your personal recovery journal — a new reflection prompt every day, saved day by day so nothing gets overwritten, with the option to attach a photo. Completing it also helps your Recovery Score." },
-  { keywords: ["reward", "gift card", "tee", "shirt", "prize", "amazon"], answer: "Rewards unlock once you complete your full recovery program without cancelling or getting refunded. Pro members get a $15-$25 Amazon gift card; Elite members get a $25-$50 Amazon gift card plus a Comeback tee, depending on recovery length. Full terms are on the Rewards tab." },
+  { keywords: ["reward", "gift card", "tee", "shirt", "prize", "amazon"], answer: "Rewards unlock once you complete your full recovery program without cancelling or getting refunded. Pro members get a $10-$25 gift card; Elite members get a $20-$50 gift card plus a Comeback tee — the exact amount scales with how many months your recovery ran. Full terms are on the Rewards tab." },
   { keywords: ["streak", "fire"], answer: "Your streak grows by one every day you actually open Comeback exactly one day after your last visit. Miss a day and it resets — it only counts real, daily use." },
   { keywords: ["sign in", "login", "log in", "account", "sync", "password", "device", "lost", "delete", "app store", "code"], answer: "Comeback isn't in an app store, so your progress never lives on just one device. Tap the account icon on the Home tab and sign in with your email — we'll send a secure one-time sign-in link, no password to remember, and everything syncs right back." },
   { keywords: ["doctor", "medical", "injury", "safe", "hurt", "physician"], answer: "Comeback is not a doctor and isn't a substitute for medical care — always get examined and cleared by a licensed physician before and during your recovery. Think of Comeback as the structured, science-backed system that works alongside your medical care, not instead of it." },
@@ -2965,4 +2989,3 @@ export default function App() {
     </div>
   );
 }
-
