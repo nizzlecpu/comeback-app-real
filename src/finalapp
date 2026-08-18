@@ -151,7 +151,7 @@ interface SavedState {
   // same as real Wordle); `solved` is true once the exact word is guessed;
   // `failed` is true if all 6 guesses were used without solving. Solving it
   // (not just attempting it, and not running out of attempts) is one of the
-  // Comeback Bucks-earning actions for that day — see COMEBACK BUCKS below.
+  // Comeback Coins-earning actions for that day — see COMEBACK COINS below.
   wordleResults?: Record<string, { guesses: string[]; solved: boolean; failed: boolean }>;
 }
 function todayStr(): string {
@@ -837,9 +837,9 @@ function billingCyclesPaidByDay(totalDays: number): number {
 // The four payout tiers themselves, indexed 0-3 — same table as the comment
 // above. A given user's ACTUAL tier is whichever is lower of (a) the tier
 // their billing cycles can safely afford (financial ceiling, below) and
-// (b) the tier their Comeback Bucks earned (engagement floor/ceiling, in
-// the COMEBACK BUCKS section right after this one). Index 0 is always
-// reachable just by finishing the program — see comebackBucksInfo().
+// (b) the tier their Comeback Coins earned (engagement floor/ceiling, in
+// the COMEBACK COINS section right after this one). Index 0 is always
+// reachable just by finishing the program — see comebackCoinsInfo().
 const PRO_TIER_AMOUNTS   = [10, 15, 20, 25];
 const ELITE_TIER_AMOUNTS = [20, 30, 40, 50];
 function cyclesSafeTierIndex(totalRecoveryDays: number): 0 | 1 | 2 | 3 {
@@ -847,9 +847,9 @@ function cyclesSafeTierIndex(totalRecoveryDays: number): 0 | 1 | 2 | 3 {
   return cycles <= 2 ? 0 : cycles <= 4 ? 1 : cycles <= 6 ? 2 : 3;
 }
 // Kept for anything that only needs the plan's financial ceiling without the
-// Comeback Bucks engagement layer (e.g. sanity-check tests, Curtis FAQ
+// Comeback Coins engagement layer (e.g. sanity-check tests, Curtis FAQ
 // copy). The real per-user reward the Rewards tab shows comes from
-// comebackBucksInfo() below, which folds this ceiling together with bucks.
+// comebackCoinsInfo() below, which folds this ceiling together with coins.
 function getRewardTier(plan: "pro" | "elite" | "trial", totalRecoveryDays: number): { giftCardAmount: number; tee: boolean; label: string } | null {
   if (plan === "trial") return null; // a free trial never had a real subscription behind it — no reward
   const idx = cyclesSafeTierIndex(totalRecoveryDays);
@@ -861,18 +861,18 @@ function getRewardTier(plan: "pro" | "elite" | "trial", totalRecoveryDays: numbe
   return { giftCardAmount, tee: true, label: `$${giftCardAmount} gift card + Comeback tee` };
 }
 
-// ── COMEBACK BUCKS ───────────────────────────────────────────────────────────
+// ── COMEBACK COINS ───────────────────────────────────────────────────────────
 // The engagement layer on top of the financial ceiling above. Nowhere does
 // the app say "you must complete every single day perfectly to get a
 // reward" — instead, six everyday actions each earn a set number of
-// Comeback Bucks for that day, they add up across the whole recovery
-// program, and the total (as a % of every bucks that COULD have been
+// Comeback Coins for that day, they add up across the whole recovery
+// program, and the total (as a % of every coins that COULD have been
 // earned) decides which of the same four tiers above the user actually
 // qualifies for. Finishing the full program at all always guarantees the
-// bottom tier (index 0) regardless of bucks earned — bucks are what move
+// bottom tier (index 0) regardless of coins earned — coins are what move
 // someone UP from there, not a gate that can leave a finisher with nothing.
 //
-//   Action (per day)                          | Bucks
+//   Action (per day)                          | Coins
 //   Journal entry completed                    | 10
 //   Daily task-completion score of 70 or higher | 15
 //   Full day of protocol tasks completed (100%) | 15
@@ -883,7 +883,7 @@ function getRewardTier(plan: "pro" | "elite" | "trial", totalRecoveryDays: numbe
 //
 // Tier math, done to keep this reachable by an "average" user who does some
 // of these things consistently rather than every single one every day:
-//   >= 80% of max possible bucks over the whole program → top tier (index 3)
+//   >= 80% of max possible coins over the whole program → top tier (index 3)
 //   >= 55%                                              → tier 2
 //   >= 30%                                              → tier 1
 //   anything less (including 0)                          → tier 0 (still a
@@ -891,15 +891,15 @@ function getRewardTier(plan: "pro" | "elite" | "trial", totalRecoveryDays: numbe
 // Because the denominator (days x 60) scales with the program's own length,
 // this holds the same for a 6-week ankle sprain and a 36-week ACL tear —
 // it's always about the % of days you showed up and did real work, not a
-// fixed bucks number that's easier for short programs and brutal for long
+// fixed coins number that's easier for short programs and brutal for long
 // ones.
-const COMEBACK_BUCKS_PER_DAY = { journal: 10, score: 15, dayComplete: 15, streak: 5, wordle: 10, supplements: 5 };
-const COMEBACK_BUCKS_MAX_PER_DAY = Object.values(COMEBACK_BUCKS_PER_DAY).reduce((a, b) => a + b, 0); // 60
-const BUCKS_TIER_PCT_THRESHOLDS = [0, 0.30, 0.55, 0.80]; // index -> minimum % of max bucks required
-// Bucks earned on one specific day, from whatever's actually saved for that
+const COMEBACK_COINS_PER_DAY = { journal: 10, score: 15, dayComplete: 15, streak: 5, wordle: 10, supplements: 5 };
+const COMEBACK_COINS_MAX_PER_DAY = Object.values(COMEBACK_COINS_PER_DAY).reduce((a, b) => a + b, 0); // 60
+const COINS_TIER_PCT_THRESHOLDS = [0, 0.30, 0.55, 0.80]; // index -> minimum % of max coins required
+// Coins earned on one specific day, from whatever's actually saved for that
 // date across completedTasks / diaryEntries / suppChecked / wordleResults.
 // Exported shape doubles as the "what it takes" breakdown shown in the UI.
-function dailyBucksBreakdown(saved: SavedState, dateKey: string, dayNum: number): {
+function dailyCoinsBreakdown(saved: SavedState, dateKey: string, dayNum: number): {
   journal: boolean; score: boolean; dayComplete: boolean; streak: boolean; wordle: boolean; supplements: boolean; total: number;
 } {
   const expectedTasks = DAY_PROTOCOLS[dayNum % DAY_PROTOCOLS.length]?.length || 0;
@@ -922,60 +922,60 @@ function dailyBucksBreakdown(saved: SavedState, dateKey: string, dayNum: number)
   // streak logic elsewhere in the app.
   const streak = journal || dayComplete || doneCountDay > 0 || supplements || !!wr;
   let total = 0;
-  if (journal) total += COMEBACK_BUCKS_PER_DAY.journal;
-  if (score) total += COMEBACK_BUCKS_PER_DAY.score;
-  if (dayComplete) total += COMEBACK_BUCKS_PER_DAY.dayComplete;
-  if (streak) total += COMEBACK_BUCKS_PER_DAY.streak;
-  if (wordle) total += COMEBACK_BUCKS_PER_DAY.wordle;
-  if (supplements) total += COMEBACK_BUCKS_PER_DAY.supplements;
+  if (journal) total += COMEBACK_COINS_PER_DAY.journal;
+  if (score) total += COMEBACK_COINS_PER_DAY.score;
+  if (dayComplete) total += COMEBACK_COINS_PER_DAY.dayComplete;
+  if (streak) total += COMEBACK_COINS_PER_DAY.streak;
+  if (wordle) total += COMEBACK_COINS_PER_DAY.wordle;
+  if (supplements) total += COMEBACK_COINS_PER_DAY.supplements;
   return { journal, score, dayComplete, streak, wordle, supplements, total };
 }
-// Sums bucks across every day of the program (past days that have data,
+// Sums coins across every day of the program (past days that have data,
 // future days count 0 since nothing's logged for them yet) — this is the
 // number the reward tier is ultimately based on.
-function computeComebackBucksTotal(saved: SavedState, totalRecoveryDays: number): { earned: number; possible: number; pct: number } {
+function computeComebackCoinsTotal(saved: SavedState, totalRecoveryDays: number): { earned: number; possible: number; pct: number } {
   let earned = 0;
   const days = Math.max(1, totalRecoveryDays);
   for (let i = 0; i < days; i++) {
     const dateKey = offsetDateStr(saved.startDate, i);
-    earned += dailyBucksBreakdown(saved, dateKey, i + 1).total;
+    earned += dailyCoinsBreakdown(saved, dateKey, i + 1).total;
   }
-  const possible = days * COMEBACK_BUCKS_MAX_PER_DAY;
+  const possible = days * COMEBACK_COINS_MAX_PER_DAY;
   return { earned, possible, pct: possible > 0 ? earned / possible : 0 };
 }
-function bucksTierIndexFromPct(pct: number): 0 | 1 | 2 | 3 {
+function coinsTierIndexFromPct(pct: number): 0 | 1 | 2 | 3 {
   let idx: 0 | 1 | 2 | 3 = 0;
-  for (let i = 3; i >= 0; i--) { if (pct >= BUCKS_TIER_PCT_THRESHOLDS[i]) { idx = i as 0 | 1 | 2 | 3; break; } }
+  for (let i = 3; i >= 0; i--) { if (pct >= COINS_TIER_PCT_THRESHOLDS[i]) { idx = i as 0 | 1 | 2 | 3; break; } }
   return idx;
 }
 // The single function the Rewards tab actually renders from — folds the
-// financial ceiling and the bucks-earned engagement layer together and
+// financial ceiling and the coins-earned engagement layer together and
 // hands back everything needed to explain "what it takes" to the user.
-function comebackBucksInfo(saved: SavedState, totalRecoveryDays: number, plan: "pro" | "elite" | "trial"): {
+function comebackCoinsInfo(saved: SavedState, totalRecoveryDays: number, plan: "pro" | "elite" | "trial"): {
   earned: number; possible: number; pct: number;
   tierIndex: number; amount: number; tee: boolean; label: string;
-  nextTierIndex: number | null; nextAmount: number | null; bucksNeededForNext: number;
+  nextTierIndex: number | null; nextAmount: number | null; coinsNeededForNext: number;
 } | null {
   if (plan === "trial") return null;
-  const { earned, possible, pct } = computeComebackBucksTotal(saved, totalRecoveryDays);
+  const { earned, possible, pct } = computeComebackCoinsTotal(saved, totalRecoveryDays);
   const ceilingIdx = cyclesSafeTierIndex(totalRecoveryDays);
-  const bucksIdx = bucksTierIndexFromPct(pct);
-  const tierIndex = Math.min(ceilingIdx, bucksIdx);
+  const coinsIdx = coinsTierIndexFromPct(pct);
+  const tierIndex = Math.min(ceilingIdx, coinsIdx);
   const amounts = plan === "elite" ? ELITE_TIER_AMOUNTS : PRO_TIER_AMOUNTS;
   const tee = plan === "elite";
   const amount = amounts[tierIndex];
   const nextTierIndex = tierIndex < ceilingIdx ? tierIndex + 1 : null;
   const nextAmount = nextTierIndex != null ? amounts[nextTierIndex] : null;
-  const bucksNeededForNext = nextTierIndex != null ? Math.max(0, Math.ceil(BUCKS_TIER_PCT_THRESHOLDS[nextTierIndex] * possible) - earned) : 0;
+  const coinsNeededForNext = nextTierIndex != null ? Math.max(0, Math.ceil(COINS_TIER_PCT_THRESHOLDS[nextTierIndex] * possible) - earned) : 0;
   return {
     earned, possible, pct, tierIndex, amount, tee,
     label: `$${amount} gift card${tee ? " + Comeback tee" : ""}`,
-    nextTierIndex, nextAmount, bucksNeededForNext,
+    nextTierIndex, nextAmount, coinsNeededForNext,
   };
 }
 const REWARDS_CONTRACT_SECTIONS: { title: string; body: string }[] = [
-  { title: "How it unlocks", body: "Your reward becomes claimable once you reach the very last day of your full recovery program. You don't have to complete every single day perfectly to get something — but which reward tier you land in depends on the Comeback Bucks you earned along the way (see below)." },
-  { title: "How Comeback Bucks decide your tier", body: "Every day you complete your Journal, hit a daily task score of 70+, finish 100% of that day's tasks, maintain your streak, solve the daily Wordle, and finish your supplement schedule, you earn Comeback Bucks. Add those up across your whole program and the percentage of the total possible you earned decides your tier — finishing the program always guarantees the base tier no matter what, and consistent effort moves you up from there." },
+  { title: "How it unlocks", body: "Your reward becomes claimable once you reach the very last day of your full recovery program. You don't have to complete every single day perfectly to get something — but which reward tier you land in depends on the Comeback Coins you earned along the way (see below)." },
+  { title: "How Comeback Coins decide your tier", body: "Every day you complete your Journal, hit a daily task score of 70+, finish 100% of that day's tasks, maintain your streak, solve the daily Wordle, and finish your supplement schedule, you earn Comeback Coins. Add those up across your whole program and the percentage of the total possible you earned decides your tier — finishing the program always guarantees the base tier no matter what, and consistent effort moves you up from there." },
   { title: "Cancellations & refunds", body: "If your subscription is canceled or any payment on it is refunded at any point, you forfeit the reward entirely for that program — no gift card, no apparel — even if you'd already completed some or all of the days." },
   { title: "One reward per completed program", body: "Rewards are tied to a single completed recovery program per subscription. Once you pick a gift card brand and claim your reward, that choice is final." },
   { title: "Photo & story consent", body: "By checking the box below, you consent to Comeback using your name, photo, and recovery journey (including anything you share in Journal or Squad) in Comeback's marketing and on social media, without additional compensation. This consent applies regardless of your age." },
@@ -1113,18 +1113,29 @@ function seedPosts(sportId: string): Post[] {
 }
 // Squad already ships with a simulated community (the seeded posts/replies above,
 // from prior sessions) so new posts never land in an empty feed. This extends that
-// same pattern to posts the current user writes: shortly after posting, a squadmate
-// replies with something contextual to what was written, picked by simple keyword
-// match against a small supportive-reply bank.
+// same pattern to both new posts AND comments/replies the current user writes:
+// shortly after either one, a squadmate writes back with something contextual to
+// what was actually said, picked by keyword match against this reply bank. A like
+// never triggers a written response — see handleLike, which only toggles the
+// count — this is deliberately tied to real written engagement (a post or a
+// comment), not a tap.
 const SQUAD_NAMES = ["Marcus T.", "Tina M.", "Jake M.", "Kyle R.", "DeShawn W.", "Trevor B.", "Alicia P.", "Sam D.", "Jordan L.", "Nina R.", "Darius K."];
 const SQUAD_REPLY_BANK: { keywords: string[]; replies: string[] }[] = [
   { keywords: ["pain", "hurt", "sore", "ache", "swoll"], replies: [
     "That soreness eased up for me too right around this point — stick with the protocol, it's normal.",
     "Ice plus the mobility block in today's tasks helped me a ton with that exact feeling.",
   ] },
-  { keywords: ["scared", "worried", "nervous", "doubt", "frustrated", "hard", "tough", "setback", "behind"], replies: [
+  // Motivation — for doubt, fear, or a rough stretch.
+  { keywords: ["scared", "worried", "nervous", "doubt", "frustrated", "hard", "tough", "setback", "behind", "give up", "exhausted", "discouraged", "can't do this", "motivation", "unmotivated"], replies: [
     "That feeling is so normal at this stage — you're not behind, you're right on track.",
     "Rough stretches happen to basically everyone in here. Keep showing up, it turns.",
+    "You've got a lot more fight in you than you think right now — one day at a time.",
+  ] },
+  // Appreciation — for thanks, gratitude, or "that helped."
+  { keywords: ["thank", "thanks", "appreciate", "grateful", "helped me", "helped a lot", "means a lot", "you're the best", "love this squad"], replies: [
+    "Anytime — that's exactly what this squad is for.",
+    "So glad that helped! We're all figuring this out together.",
+    "Love that. This squad's got your back the whole way through.",
   ] },
   { keywords: ["?", "how", "when", "anyone", "advice", "question"], replies: [
     "For me it clicked once I stopped skipping the evening mobility block — worth trying.",
@@ -1135,9 +1146,17 @@ const SQUAD_REPLY_BANK: { keywords: string[]; replies: string[] }[] = [
     "Love seeing this. Consistency is doing more for you than you probably realize right now.",
   ] },
 ];
+// Word-boundary matching for single-word keywords (so "day" doesn't fire off
+// the substring inside "today", "pr" doesn't fire inside "protocol", etc.) —
+// short phrases/punctuation keywords ("give up", "?") still use plain
+// substring matching since a word-boundary regex doesn't apply to them.
+function squadKeywordMatches(text: string, keyword: string): boolean {
+  if (/^[a-z']+$/i.test(keyword)) return new RegExp(`\\b${keyword}\\b`, "i").test(text);
+  return text.includes(keyword);
+}
 function getSquadAutoReply(msg: string): { author: string; text: string } {
   const text = msg.toLowerCase();
-  const matched = SQUAD_REPLY_BANK.filter(b => b.keywords.some(k => text.includes(k)));
+  const matched = SQUAD_REPLY_BANK.filter(b => b.keywords.some(k => squadKeywordMatches(text, k)));
   const pool = (matched.length ? matched : SQUAD_REPLY_BANK).flatMap(b => b.replies);
   return {
     author: SQUAD_NAMES[Math.floor(Math.random() * SQUAD_NAMES.length)],
@@ -1323,6 +1342,49 @@ function NavBtn({ icon, label, active, onClick }: { icon: ReactNode; label: stri
       <div style={{ color: active ? T.neon : T.textMuted, filter: active ? `drop-shadow(0 0 6px ${T.neon})` : "none" }}>{icon}</div>
       <span style={{ fontSize: 9, fontWeight: 700, color: active ? T.neon : T.textMuted, textShadow: active ? shadow.neon : "none", maxWidth: "100%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{label}</span>
     </button>
+  );
+}
+// A hand-drawn flexed-arm/bicep icon in the exact same visual language as
+// every lucide-react icon used elsewhere in the nav (24x24 viewBox, 2px
+// stroke, round caps/joins, no fill) — so it inherits NavBtn's currentColor
+// styling (active neon / inactive muted) instead of showing up as a flat,
+// fixed-color emoji like the rest of the nav icons never do. Drawn locally
+// rather than imported from lucide-react because this app's pinned
+// lucide-react version isn't guaranteed to ship a literal "bicep" icon name.
+function BicepIcon({ size = 17 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="5.5" cy="17.5" r="2" />
+      <path d="M7.2 16.3c-0.7-2.3-0.5-4.8 1.3-6.8 1-1.2 1.3-2.7 2.5-3.7 2-1.7 5-2.2 7-0.8 1.8 1.3 1.6 4-0.5 5.3-1.3 0.8-2.9 0.9-4.3 0.5-1.2-0.4-2.2 0.4-2.9 1.5-0.9 1.4-1.6 2.7-2.7 3.8Z" />
+    </svg>
+  );
+}
+// A small gold "coin" badge for the Comeback Coins counter, stamped with
+// the same barbell mark used in the Logo component above — so the coin
+// visually reads as this app's own currency, not a generic dollar icon.
+function ComebackCoin({ size = 18 }: { size?: number }) {
+  return (
+    <div style={{
+      width: size, height: size, borderRadius: size / 2, flexShrink: 0,
+      background: "linear-gradient(135deg,#FCD34D,#D97706)", border: "1.5px solid #FDE68A",
+      display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 0 6px #F59E0B80",
+    }}>
+      <svg width={size * 0.6} height={size * 0.6} viewBox="0 0 24 24" fill="none">
+        <rect x="2" y="9" width="4" height="6" rx="1.5" fill="#3A2400" />
+        <rect x="18" y="9" width="4" height="6" rx="1.5" fill="#3A2400" />
+        <rect x="5" y="11" width="14" height="2" rx="1" fill="#3A2400" />
+        <rect x="8" y="7" width="3" height="10" rx="1.5" fill="#3A2400" />
+        <rect x="13" y="7" width="3" height="10" rx="1.5" fill="#3A2400" />
+      </svg>
+    </div>
+  );
+}
+function CoinsCounter({ amount }: { amount: number }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 5 }} title="Comeback Coins earned so far">
+      <ComebackCoin size={18} />
+      <span style={{ fontSize: 12, fontWeight: 800, color: "#F59E0B" }}>{amount}</span>
+    </div>
   );
 }
 // ── RECOVERY SCORE (Elite-exclusive) ────────────────────────────────────────────
@@ -1681,7 +1743,7 @@ function SportSelect({ onNext, onBack }: { onNext: (s: typeof SPORTS[0]) => void
               <div style={{ padding: "8px 10px 10px" }}>
                 <div style={{ fontWeight: 700, fontSize: 13, color: T.textPrimary }}>{s.label}</div>
                 <div style={{ fontSize: 10, color: T.textMuted, marginTop: 1 }}>{s.athlete}</div>
-                <div style={{ fontSize: 9, color: T.neon, fontWeight: 700, marginTop: 2 }}>● {(() => { const d=parseInt(todayStr().replace(/-/g,""))%100; const v=Math.floor(((d+s.id.length*7)%40)-20); return Math.max(12,s.liveUsers+v); })()} active</div>
+                <div style={{ fontSize: 9, color: T.neon, fontWeight: 700, marginTop: 2 }}>● {(() => { const scaled=Math.max(1,Math.min(95,Math.round(s.liveUsers/2.6))); const d=parseInt(todayStr().replace(/-/g,""))%100; const v=Math.floor(((d+s.id.length*7)%16)-8); return Math.max(1,Math.min(100,scaled+v)); })()} active</div>
               </div>
             </button>
           ))}
@@ -2170,7 +2232,7 @@ function DailyWordle() {
         {solved && <TagPill color={T.neon} bg={T.neonL}>Solved in {guesses.length}/6 🎉</TagPill>}
         {failed && <TagPill color={T.red} bg="rgba(220,38,38,0.12)">Word was {answer}</TagPill>}
       </div>
-      <p style={{ fontSize: 11, color: T.textSecondary, marginBottom: 10, lineHeight: 1.4 }}>A new 5-letter sports & recovery word every day. Solve it without running out of guesses to earn today's Comeback Bucks for it.</p>
+      <p style={{ fontSize: 11, color: T.textSecondary, marginBottom: 10, lineHeight: 1.4 }}>A new 5-letter sports & recovery word every day. Solve it without running out of guesses to earn today's Comeback Coins for it.</p>
       <div style={{ display: "flex", flexDirection: "column", gap: 5, marginBottom: 12 }}>
         {rows.slice(0, 6).map((rowGuess, r) => {
           const isPending = !gameOver && r === guesses.length;
@@ -2249,11 +2311,16 @@ function AppDashboard({ saved, onReset, onUpgrade, onOpenAccount, authUser }: {
     const h = Math.floor(totalMin / 60), m = totalMin % 60;
     return h > 0 ? `${h}h ${m}m left` : `${m}m left`;
   })();
+  // Rescales each sport's raw liveUsers seed (25-247 in SPORTS below) down
+  // into a believable 1-100 "active right now" range instead of showing
+  // triple-digit numbers, while still keeping popular sports (soccer,
+  // football) reading higher than niche ones (lacrosse, cycling).
   const getLiveCount = (base: number) => {
+    const scaledBase = Math.max(1, Math.min(95, Math.round(base / 2.6)));
     const daySeed = parseInt(todayStr().replace(/-/g,"")) % 100;
     const sportSeed = saved.sportId.length * 7;
-    const variance = Math.floor(((daySeed + sportSeed) % 40) - 20);
-    return Math.max(12, base + variance);
+    const variance = Math.floor(((daySeed + sportSeed) % 16) - 8);
+    return Math.max(1, Math.min(100, scaledBase + variance));
   };
   const [posts, setPosts] = useState<Post[]>(() => saved.posts?.[saved.sportId] || seedPosts(saved.sportId));
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
@@ -2405,14 +2472,41 @@ function AppDashboard({ saved, onReset, onUpgrade, onOpenAccount, authUser }: {
     diaryEntries: diaryHistory,
   };
   const recoveryScore = computeRecoveryScore(scoreInputState, macros);
+  // Comeback Coins earned so far, for the small coin counter shown next to
+  // the streak fire on Home and Today — this is the running wallet total,
+  // not just today's, so it's read off the saved history directly rather
+  // than the live in-session scoreInputState above.
+  const coinsInfo = comebackCoinsInfo(saved, totalRecoveryDays, saved.plan);
+  const totalCoinsEarned = coinsInfo?.earned ?? 0;
   const handleLike = (postId: string) => {
     setPosts(prev => prev.map(p => p.id === postId ? { ...p, likes: p.likedByMe ? p.likes - 1 : p.likes + 1, likedByMe: !p.likedByMe } : p));
   };
   const handleReply = (postId: string) => {
     if (!replyText.trim()) return;
+    const commentText = replyText.trim();
     const now = new Date().toISOString();
-    setPosts(prev => prev.map(p => p.id === postId ? { ...p, replies: [...p.replies, { author: "You", msg: replyText.trim(), timestamp: now }] } : p));
+    setPosts(prev => prev.map(p => p.id === postId ? { ...p, replies: [...p.replies, { author: "You", msg: commentText, timestamp: now }] } : p));
+    const s = loadState();
+    if (s?.posts?.[saved.sportId]) {
+      s.posts[saved.sportId] = s.posts[saved.sportId].map(p => p.id === postId ? { ...p, replies: [...p.replies, { author: "You", msg: commentText, timestamp: now }] } : p);
+      saveState(s);
+    }
     setReplyText(""); setReplyingTo(null);
+    // A squadmate writes back shortly after an actual comment is posted —
+    // never after just a like (handleLike above only toggles the count, no
+    // reply logic at all). Which reply gets picked leans appreciative or
+    // motivational depending on the trigger words in what was written; see
+    // SQUAD_REPLY_BANK.
+    const autoReply = getSquadAutoReply(commentText);
+    setTimeout(() => {
+      const reply = { author: autoReply.author, msg: autoReply.text, timestamp: new Date().toISOString() };
+      setPosts(prev => prev.map(p => p.id === postId ? { ...p, replies: [...p.replies, reply] } : p));
+      const s2 = loadState();
+      if (s2?.posts?.[saved.sportId]) {
+        s2.posts[saved.sportId] = s2.posts[saved.sportId].map(p => p.id === postId ? { ...p, replies: [...p.replies, reply] } : p);
+        saveState(s2);
+      }
+    }, 3000 + Math.random() * 4000);
   };
   const handleNewPost = () => {
     if (!newPost.trim()) return;
@@ -2443,7 +2537,7 @@ function AppDashboard({ saved, onReset, onUpgrade, onOpenAccount, authUser }: {
             <Gift size={22} color={T.neon} />
             <h1 style={{ fontWeight: 900, fontSize: 22, color: T.textPrimary, margin: 0 }}>Real Rewards</h1>
           </div>
-          <p style={{ fontSize: 13, color: T.textSecondary, marginBottom: 16 }}>Not points that expire into nothing — a real gift card, and a real Comeback tee on Elite, earned with Comeback Bucks along the way.</p>
+          <p style={{ fontSize: 13, color: T.textSecondary, marginBottom: 16 }}>Not points that expire into nothing — a real gift card, and a real Comeback tee on Elite, earned with Comeback Coins along the way.</p>
           {saved.plan === "trial" ? (
             <Card style={{ textAlign: "center", padding: "24px 16px" }}>
               <p style={{ fontSize: 13, color: T.textSecondary, marginBottom: 16, lineHeight: 1.6 }}>Rewards are for Pro and Elite subscribers — your free trial doesn't have a paid plan behind it yet, so there's nothing to earn a reward against. Upgrade to start earning yours.</p>
@@ -2453,17 +2547,17 @@ function AppDashboard({ saved, onReset, onUpgrade, onOpenAccount, authUser }: {
               </div>
             </Card>
           ) : (() => {
-            const bucksInfo = comebackBucksInfo(saved, totalRecoveryDays, saved.plan);
-            if (!bucksInfo) return null;
-            const tier = { label: bucksInfo.label, giftCardAmount: bucksInfo.amount, tee: bucksInfo.tee };
-            const todayBucks = dailyBucksBreakdown(saved, todayKey, dayNum);
-            const BUCKS_CHECKLIST: { key: keyof typeof todayBucks; icon: string; label: string; pts: number }[] = [
-              { key: "journal", icon: "📓", label: "Complete today's Journal", pts: COMEBACK_BUCKS_PER_DAY.journal },
-              { key: "score", icon: "📊", label: "Hit a daily score of 70+", pts: COMEBACK_BUCKS_PER_DAY.score },
-              { key: "dayComplete", icon: "✅", label: "Finish 100% of today's tasks", pts: COMEBACK_BUCKS_PER_DAY.dayComplete },
-              { key: "streak", icon: "🔥", label: "Maintain your daily streak", pts: COMEBACK_BUCKS_PER_DAY.streak },
-              { key: "wordle", icon: "🧩", label: "Solve today's Wordle (no fails)", pts: COMEBACK_BUCKS_PER_DAY.wordle },
-              { key: "supplements", icon: "💊", label: "Complete your supplement schedule", pts: COMEBACK_BUCKS_PER_DAY.supplements },
+            const coinsInfo = comebackCoinsInfo(saved, totalRecoveryDays, saved.plan);
+            if (!coinsInfo) return null;
+            const tier = { label: coinsInfo.label, giftCardAmount: coinsInfo.amount, tee: coinsInfo.tee };
+            const todayCoins = dailyCoinsBreakdown(saved, todayKey, dayNum);
+            const COINS_CHECKLIST: { key: keyof typeof todayCoins; icon: string; label: string; pts: number }[] = [
+              { key: "journal", icon: "📓", label: "Complete today's Journal", pts: COMEBACK_COINS_PER_DAY.journal },
+              { key: "score", icon: "📊", label: "Hit a daily score of 70+", pts: COMEBACK_COINS_PER_DAY.score },
+              { key: "dayComplete", icon: "✅", label: "Finish 100% of today's tasks", pts: COMEBACK_COINS_PER_DAY.dayComplete },
+              { key: "streak", icon: "🔥", label: "Maintain your daily streak", pts: COMEBACK_COINS_PER_DAY.streak },
+              { key: "wordle", icon: "🧩", label: "Solve today's Wordle (no fails)", pts: COMEBACK_COINS_PER_DAY.wordle },
+              { key: "supplements", icon: "💊", label: "Complete your supplement schedule", pts: COMEBACK_COINS_PER_DAY.supplements },
             ];
             return (
               <>
@@ -2471,28 +2565,28 @@ function AppDashboard({ saved, onReset, onUpgrade, onOpenAccount, authUser }: {
                   <div style={{ fontWeight: 800, fontSize: 10, color: T.neon, marginBottom: 8, letterSpacing: "1px" }}>YOUR CURRENT REWARD</div>
                   <div style={{ fontWeight: 900, fontSize: 22, color: T.textPrimary, marginBottom: 6 }}>{tier.label}</div>
                   <div style={{ fontSize: 12, color: T.textSecondary, lineHeight: 1.5 }}>
-                    Based on your {injury?.label.toLowerCase() || "injury"} recovery running {totalRecoveryDays} days on the {saved.plan === "elite" ? "Elite" : "Pro"} plan, plus the Comeback Bucks you've earned so far.
+                    Based on your {injury?.label.toLowerCase() || "injury"} recovery running {totalRecoveryDays} days on the {saved.plan === "elite" ? "Elite" : "Pro"} plan, plus the Comeback Coins you've earned so far.
                   </div>
                 </NeonCard>
                 <Card style={{ marginBottom: 16 }}>
                   <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
-                    <span style={{ fontSize: 12, fontWeight: 700, color: T.textPrimary }}>💰 Comeback Bucks earned</span>
-                    <span style={{ fontSize: 12, fontWeight: 800, color: T.neon }}>{bucksInfo.earned} / {bucksInfo.possible}</span>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: T.textPrimary }}>🪙 Comeback Coins earned</span>
+                    <span style={{ fontSize: 12, fontWeight: 800, color: T.neon }}>{coinsInfo.earned} / {coinsInfo.possible}</span>
                   </div>
                   <div style={{ height: 8, borderRadius: 4, background: T.border, overflow: "hidden" }}>
-                    <div style={{ height: "100%", width: `${Math.min(100, Math.round(bucksInfo.pct * 100))}%`, background: "#F59E0B", boxShadow: "0 0 8px #F59E0B80", borderRadius: 4 }} />
+                    <div style={{ height: "100%", width: `${Math.min(100, Math.round(coinsInfo.pct * 100))}%`, background: "#F59E0B", boxShadow: "0 0 8px #F59E0B80", borderRadius: 4 }} />
                   </div>
                   <div style={{ fontSize: 11, color: T.textMuted, marginTop: 8 }}>
-                    {bucksInfo.nextAmount != null
-                      ? <>Earn <strong style={{ color: T.textPrimary }}>{bucksInfo.bucksNeededForNext} more Comeback Bucks</strong> to move up to a ${bucksInfo.nextAmount} reward{bucksInfo.tee ? " (tee already included)" : ""}.</>
+                    {coinsInfo.nextAmount != null
+                      ? <>Earn <strong style={{ color: T.textPrimary }}>{coinsInfo.coinsNeededForNext} more Comeback Coins</strong> to move up to a ${coinsInfo.nextAmount} reward{coinsInfo.tee ? " (tee already included)" : ""}.</>
                       : "You've reached the top reward tier available for your plan and program length — nice work."}
                   </div>
                 </Card>
                 <Card style={{ marginBottom: 16 }}>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: T.textPrimary, marginBottom: 10 }}>Today's ways to earn Comeback Bucks</div>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: T.textPrimary, marginBottom: 10 }}>Today's ways to earn Comeback Coins</div>
                   <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                    {BUCKS_CHECKLIST.map(item => {
-                      const done = !!todayBucks[item.key];
+                    {COINS_CHECKLIST.map(item => {
+                      const done = !!todayCoins[item.key];
                       return (
                         <div key={item.key as string} style={{ display: "flex", alignItems: "center", gap: 10 }}>
                           <div style={{ width: 22, height: 22, borderRadius: 11, background: done ? T.neon : T.border, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
@@ -2520,7 +2614,7 @@ function AppDashboard({ saved, onReset, onUpgrade, onOpenAccount, authUser }: {
                 {!recoveryComplete ? (
                   <div style={{ display: "flex", gap: 10, alignItems: "flex-start", background: T.surface, border: `1px solid ${T.border}`, borderRadius: 14, padding: 14 }}>
                     <Lock size={16} color={T.textMuted} style={{ flexShrink: 0, marginTop: 2 }} />
-                    <p style={{ fontSize: 12, color: T.textSecondary, margin: 0, lineHeight: 1.5 }}>Your reward becomes claimable once you reach the very last day of your program — keep earning Comeback Bucks along the way to lock in a higher tier. Stay subscribed the whole way through — cancelling or getting refunded forfeits it.</p>
+                    <p style={{ fontSize: 12, color: T.textSecondary, margin: 0, lineHeight: 1.5 }}>Your reward becomes claimable once you reach the very last day of your program — keep earning Comeback Coins along the way to lock in a higher tier. Stay subscribed the whole way through — cancelling or getting refunded forfeits it.</p>
                   </div>
                 ) : rewardClaim ? (
                   <NeonCard>
@@ -2590,8 +2684,10 @@ function AppDashboard({ saved, onReset, onUpgrade, onOpenAccount, authUser }: {
                 style={{ width: 36, height: 36, borderRadius: 18, background: T.surface, border: `1px solid ${authUser ? T.neon + "60" : T.border}`, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
                 {authUser ? <Cloud size={16} color={T.neon} /> : <UserIcon size={16} color={T.textMuted} />}
               </button>
-              <div style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 20, padding: "6px 12px", display: "flex", alignItems: "center", gap: 5 }}>
+              <div style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 20, padding: "6px 12px", display: "flex", alignItems: "center", gap: 8 }}>
                 <StreakFire streak={saved.streak} alive={saved.streakAlive} />
+                <div style={{ width: 1, height: 14, background: T.border }} />
+                <CoinsCounter amount={totalCoinsEarned} />
               </div>
               <div style={{ width: 36, height: 36, borderRadius: 18, background: T.surface, border: `1px solid ${T.border}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 }}>{sport?.icon || "🏆"}</div>
             </div>
@@ -2731,8 +2827,10 @@ function AppDashboard({ saved, onReset, onUpgrade, onOpenAccount, authUser }: {
                   <span style={{ fontSize: 12, color: T.textSecondary, fontWeight: 600 }}>{injury?.label}</span>
                 </div>
               </div>
-              <div style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 20, padding: "7px 13px" }}>
+              <div style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 20, padding: "7px 13px", display: "flex", alignItems: "center", gap: 8 }}>
                 <StreakFire streak={saved.streak} alive={saved.streakAlive} />
+                <div style={{ width: 1, height: 14, background: T.border }} />
+                <CoinsCounter amount={totalCoinsEarned} />
               </div>
             </div>
             <Card style={{ background: "linear-gradient(135deg,#0D0D1A,#0A0A14)", border: `1px solid ${T.neon}30`, marginBottom: 14 }}>
@@ -3078,14 +3176,14 @@ function AppDashboard({ saved, onReset, onUpgrade, onOpenAccount, authUser }: {
     <div style={{ height: "100%", display: "flex", flexDirection: "column", background: T.bg }}>
       <div style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column", minHeight: 0 }}>{renderTab()}</div>
       {/* 7 sections total — 3 on each side of the center Today button. Left
-          side: Protocol, Home, Journal (Journal sits right next to Home).
+          side: Home, Protocol, Journal (Journal sits right next to Home).
           Right side: Squad, Rewards, Score (Rewards sits right before
           Score). justifyContent: space-between + each NavBtn's flex:1 (see
           NavBtn above) is what keeps 7 items from overlapping at mobile
           widths — they divide the bar evenly instead of stacking up. */}
       <div style={{ flexShrink: 0, background: T.surface, borderTop: `1px solid ${T.border}`, paddingBottom: "env(safe-area-inset-bottom,12px)", paddingTop: 8, paddingLeft: 2, paddingRight: 2, display: "flex", justifyContent: "space-between", alignItems: "flex-end", zIndex: 50 }}>
-        <NavBtn icon={<span style={{ fontSize: 17, lineHeight: 1 }}>💪</span>} label="Protocol" active={tab === "protocol"} onClick={() => setTab("protocol")} />
         <NavBtn icon={<Home size={17} />}     label="Home"     active={tab === "home"}     onClick={() => setTab("home")} />
+        <NavBtn icon={<BicepIcon size={17} />} label="Protocol" active={tab === "protocol"} onClick={() => setTab("protocol")} />
         <NavBtn icon={<BookOpen size={17} />} label="Journal"  active={tab === "diary"}    onClick={() => setTab("diary")} />
         <button onClick={() => setTab("today")} style={{ width: 52, height: 52, borderRadius: 26, background: tab === "today" ? T.neon : T.card, display: "flex", alignItems: "center", justifyContent: "center", border: `2px solid ${tab === "today" ? T.neon : T.border}`, boxShadow: tab === "today" ? shadow.neon : shadow.sm, cursor: "pointer", marginBottom: 3, flexShrink: 0 }}>
           <Dumbbell size={20} color={tab === "today" ? T.bg : T.textSecondary} />
@@ -3108,7 +3206,7 @@ const CURTIS_FAQ: { keywords: string[]; answer: string }[] = [
   { keywords: ["plan", "subscription", "price", "cost", "pro", "elite", "upgrade", "cancel", "billing", "stripe", "refund"], answer: "Comeback has two plans: Pro ($9.99/mo) and Elite ($28.99/mo — adds your live Recovery Score, Journal, and Rewards). See full plan details any time from the Score tab. You can manage or cancel your subscription through Stripe whenever you'd like." },
   { keywords: ["protocol", "today", "workout", "exercise", "task", "phase"], answer: "Your daily tasks live under the Today button (the big one in the middle of the bottom nav). The Protocol tab shows your whole recovery roadmap, phase by phase." },
   { keywords: ["squad", "post", "community", "team", "reply", "like"], answer: "Squad is your community feed with athletes recovering from the same sport and injury as you — post, like, and reply right from the Squad tab." },
-  { keywords: ["diary", "journal", "feelings", "mood", "emotions", "goals"], answer: "Journal is your personal recovery journal — a new reflection prompt every day, saved day by day so nothing gets overwritten, with the option to attach a photo. Completing it also helps your Recovery Score and earns you Comeback Bucks." },
+  { keywords: ["diary", "journal", "feelings", "mood", "emotions", "goals"], answer: "Journal is your personal recovery journal — a new reflection prompt every day, saved day by day so nothing gets overwritten, with the option to attach a photo. Completing it also helps your Recovery Score and earns you Comeback Coins." },
   { keywords: ["reward", "gift card", "tee", "shirt", "prize", "amazon"], answer: "Rewards unlock once you complete your full recovery program without cancelling or getting refunded. Pro members get a $10-$25 gift card; Elite members get a $20-$50 gift card plus a Comeback tee — the exact amount scales with how many months your recovery ran. Full terms are on the Rewards tab." },
   { keywords: ["streak", "fire"], answer: "Your streak grows by one every day you actually open Comeback exactly one day after your last visit. Miss a day and it resets — it only counts real, daily use." },
   { keywords: ["sign in", "login", "log in", "account", "sync", "password", "device", "lost", "delete", "app store", "code"], answer: "Comeback isn't in an app store, so your progress never lives on just one device. Tap the account icon on the Home tab and sign in with your email — we'll send a secure one-time sign-in link, no password to remember, and everything syncs right back." },
