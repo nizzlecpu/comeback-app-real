@@ -663,86 +663,114 @@ const DAY_PROTOCOLS: Task[][] = [
   [
     {time:"6:30 AM",task:"Hydrate 500ml water with a pinch of sea salt for electrolytes before anything else",icon:"💧",iconColor:"#38BDF8",iconBg:"#38BDF820"},
     {time:"7:00 AM",task:"5-min deep breathing (4-7-8 method) plus gentle mobility to loosen the injured area",icon:"🌅",iconColor:"#F59E0B",iconBg:"#F59E0B20"},
-    {time:"8:00 AM",task:"Breakfast plus morning supplements: D3 2,000 IU and Omega-3 1g with food",icon:"💊",iconColor:"#6366F1",iconBg:"#6366F120"},
+    {time:"8:00 AM",task:"Breakfast: a protein-forward meal to start the day right",icon:"🥗",iconColor:"#22CC00",iconBg:"#22CC0020"},
+    {time:"8:15 AM",task:"D3 2,000 IU and Omega-3 1g with food",icon:"💊",iconColor:"#6366F1",iconBg:"#6366F120"},
     {time:"10:00 AM",task:"Rehab session A: injury-specific exercises 3 sets. Focus on controlled movement, zero pain",icon:"🏋️",iconColor:"#39FF14",iconBg:"#39FF1420"},
     {time:"10:30 AM",task:"Vitamin C 500mg plus Collagen 10g immediately after rehab — collagen synthesis window",icon:"💊",iconColor:"#EC4899",iconBg:"#EC489920"},
-    {time:"12:00 PM",task:"Lunch: 40g protein (salmon or chicken) plus complex carbs plus leafy greens. Zinc 15mg with meal",icon:"🥗",iconColor:"#22CC00",iconBg:"#22CC0020"},
-    {time:"2:00 PM",task:"Ice and compression 20 min on injury site plus elevation above heart to reduce inflammation",icon:"🧊",iconColor:"#38BDF8",iconBg:"#38BDF820"},
+    {time:"12:00 PM",task:"Lunch: 40g protein (salmon or chicken) plus complex carbs plus leafy greens",icon:"🥗",iconColor:"#22CC00",iconBg:"#22CC0020"},
+    {time:"12:05 PM",task:"Zinc 15mg with lunch",icon:"💊",iconColor:"#6366F1",iconBg:"#6366F120"},
+    {time:"2:00 PM",task:"Ice and compression 20 min on injury site to reduce inflammation",icon:"🧊",iconColor:"#38BDF8",iconBg:"#38BDF820"},
+    {time:"2:20 PM",task:"Elevate the injury above heart level for 20 min",icon:"🧊",iconColor:"#38BDF8",iconBg:"#38BDF820"},
     {time:"4:00 PM",task:"Low-impact cardio: 20 min stationary bike or pool walk to maintain base fitness",icon:"🚴",iconColor:"#A855F7",iconBg:"#A855F720"},
-    {time:"7:00 PM",task:"Dinner: 40g protein plus anti-inflammatory fats (olive oil, avocado). Magnesium 400mg",icon:"🍽️",iconColor:"#39FF14",iconBg:"#39FF1420"},
+    {time:"7:00 PM",task:"Dinner: 40g protein plus anti-inflammatory fats (olive oil, avocado)",icon:"🍽️",iconColor:"#39FF14",iconBg:"#39FF1420"},
+    {time:"7:05 PM",task:"Magnesium 400mg with dinner",icon:"💊",iconColor:"#6366F1",iconBg:"#6366F120"},
     {time:"9:00 PM",task:"10-min foam roll avoiding injured area, light stretching, sleep target 9 hours",icon:"😴",iconColor:"#6366F1",iconBg:"#6366F120"},
   ],
   [
-    {time:"6:30 AM",task:"Morning hydration 500ml. Rate injury pain 1 to 10 before getting out of bed",icon:"💧",iconColor:"#38BDF8",iconBg:"#38BDF820"},
+    {time:"6:30 AM",task:"Morning hydration 500ml",icon:"💧",iconColor:"#38BDF8",iconBg:"#38BDF820"},
+    {time:"6:35 AM",task:"Rate injury pain 1 to 10 before getting out of bed",icon:"🌅",iconColor:"#F59E0B",iconBg:"#F59E0B20"},
     {time:"7:00 AM",task:"10-min dynamic warm-up: leg swings, arm circles, hip circles — activate without loading",icon:"🌅",iconColor:"#F59E0B",iconBg:"#F59E0B20"},
-    {time:"8:00 AM",task:"Breakfast plus D3 2,000 IU and Omega-3 1g. Take with fat-containing meal for absorption",icon:"💊",iconColor:"#6366F1",iconBg:"#6366F120"},
+    {time:"8:00 AM",task:"Breakfast — take with a fat-containing meal for supplement absorption",icon:"🥗",iconColor:"#22CC00",iconBg:"#22CC0020"},
+    {time:"8:15 AM",task:"D3 2,000 IU and Omega-3 1g",icon:"💊",iconColor:"#6366F1",iconBg:"#6366F120"},
     {time:"10:00 AM",task:"Rehab session B: add one rep or 5% more resistance than last session. Progressive overload",icon:"🏋️",iconColor:"#39FF14",iconBg:"#39FF1420"},
     {time:"10:30 AM",task:"Collagen 10g plus Vitamin C 500mg post-session. 30-min window for tendon synthesis",icon:"💊",iconColor:"#EC4899",iconBg:"#EC489920"},
-    {time:"12:00 PM",task:"Lunch: 40g protein plus sweet potato plus spinach salad. Zinc 15mg with meal",icon:"🥗",iconColor:"#22CC00",iconBg:"#22CC0020"},
+    {time:"12:00 PM",task:"Lunch: 40g protein plus sweet potato plus spinach salad",icon:"🥗",iconColor:"#22CC00",iconBg:"#22CC0020"},
+    {time:"12:05 PM",task:"Zinc 15mg with lunch",icon:"💊",iconColor:"#6366F1",iconBg:"#6366F120"},
     {time:"2:30 PM",task:"Ice massage using frozen cup on injury 10 min. Reduces localized inflammation better than ice pack",icon:"🧊",iconColor:"#38BDF8",iconBg:"#38BDF820"},
     {time:"4:00 PM",task:"Upper body strength non-injured muscles: 3x15 rows, press, curls to maintain muscle mass",icon:"💪",iconColor:"#A855F7",iconBg:"#A855F720"},
-    {time:"7:00 PM",task:"Dinner: salmon or sardines plus quinoa plus broccoli. Magnesium 400mg before bed",icon:"🍽️",iconColor:"#39FF14",iconBg:"#39FF1420"},
+    {time:"7:00 PM",task:"Dinner: salmon or sardines plus quinoa plus broccoli",icon:"🍽️",iconColor:"#39FF14",iconBg:"#39FF1420"},
+    {time:"7:05 PM",task:"Magnesium 400mg before bed",icon:"💊",iconColor:"#6366F1",iconBg:"#6366F120"},
     {time:"9:30 PM",task:"Visualization: 5 min eyes closed, picture yourself fully recovered competing. Then sleep",icon:"😴",iconColor:"#6366F1",iconBg:"#6366F120"},
   ],
   [
     {time:"6:30 AM",task:"Hydrate 500ml plus tart cherry juice 8oz — natural anti-inflammatory reducing DOMS by 22%",icon:"💧",iconColor:"#38BDF8",iconBg:"#38BDF820"},
     {time:"7:00 AM",task:"Contrast shower: 2 min warm then 30 sec cold, repeat 4 cycles. Boosts circulation and recovery",icon:"🌅",iconColor:"#F59E0B",iconBg:"#F59E0B20"},
-    {time:"8:00 AM",task:"High-protein breakfast: 3 eggs plus Greek yogurt. D3 plus Omega-3 with meal",icon:"💊",iconColor:"#6366F1",iconBg:"#6366F120"},
+    {time:"8:00 AM",task:"High-protein breakfast: 3 eggs plus Greek yogurt",icon:"🥗",iconColor:"#22CC00",iconBg:"#22CC0020"},
+    {time:"8:15 AM",task:"D3 plus Omega-3 with meal",icon:"💊",iconColor:"#6366F1",iconBg:"#6366F120"},
     {time:"10:00 AM",task:"Active recovery day: 50% intensity rehab. Focus on range of motion not load today",icon:"🏋️",iconColor:"#39FF14",iconBg:"#39FF1420"},
     {time:"10:30 AM",task:"Collagen 10g plus Vitamin C 500mg post-session",icon:"💊",iconColor:"#EC4899",iconBg:"#EC489920"},
-    {time:"12:00 PM",task:"Lunch: 40g protein. Anti-inflammatory focus: turmeric in meal, olive oil dressing",icon:"🥗",iconColor:"#22CC00",iconBg:"#22CC0020"},
+    {time:"12:00 PM",task:"Lunch: 40g protein",icon:"🥗",iconColor:"#22CC00",iconBg:"#22CC0020"},
+    {time:"12:05 PM",task:"Anti-inflammatory boost with lunch: turmeric stirred in, olive oil dressing",icon:"🥗",iconColor:"#22CC00",iconBg:"#22CC0020"},
     {time:"2:00 PM",task:"Pool session 20 min OR ice bath 10 min at 55F if available — elite recovery method",icon:"🏊",iconColor:"#38BDF8",iconBg:"#38BDF820"},
     {time:"4:30 PM",task:"Core stability: dead bug 3x10, pallof press 3x12, bird-dog 3x10 each side",icon:"💪",iconColor:"#A855F7",iconBg:"#A855F720"},
-    {time:"7:00 PM",task:"Dinner: chicken or tofu plus lentils plus vegetables. Magnesium 400mg",icon:"🍽️",iconColor:"#39FF14",iconBg:"#39FF1420"},
-    {time:"9:00 PM",task:"Gratitude journal: write 3 things you CAN do today. Sleep 9 hours",icon:"😴",iconColor:"#6366F1",iconBg:"#6366F120"},
+    {time:"7:00 PM",task:"Dinner: chicken or tofu plus lentils plus vegetables",icon:"🍽️",iconColor:"#39FF14",iconBg:"#39FF1420"},
+    {time:"7:05 PM",task:"Magnesium 400mg with dinner",icon:"💊",iconColor:"#6366F1",iconBg:"#6366F120"},
+    {time:"9:00 PM",task:"Gratitude journal: write 3 things you CAN do today",icon:"😴",iconColor:"#6366F1",iconBg:"#6366F120"},
+    {time:"9:15 PM",task:"Sleep target 9 hours",icon:"😴",iconColor:"#6366F1",iconBg:"#6366F120"},
   ],
   [
     {time:"6:30 AM",task:"500ml water. Photograph the injury weekly to track swelling reduction over time",icon:"💧",iconColor:"#38BDF8",iconBg:"#38BDF820"},
     {time:"7:00 AM",task:"10-min yoga flow for recovery: hip flexors, hamstrings, shoulders, spine",icon:"🌅",iconColor:"#F59E0B",iconBg:"#F59E0B20"},
-    {time:"8:00 AM",task:"Breakfast: oatmeal plus protein powder plus berries. D3 plus Omega-3 with meal",icon:"💊",iconColor:"#6366F1",iconBg:"#6366F120"},
+    {time:"8:00 AM",task:"Breakfast: oatmeal plus protein powder plus berries",icon:"🥗",iconColor:"#22CC00",iconBg:"#22CC0020"},
+    {time:"8:15 AM",task:"D3 plus Omega-3 with meal",icon:"💊",iconColor:"#6366F1",iconBg:"#6366F120"},
     {time:"10:00 AM",task:"Rehab session C: neuromuscular focus. Balance drills and proprioception training today",icon:"🏋️",iconColor:"#39FF14",iconBg:"#39FF1420"},
     {time:"10:30 AM",task:"Collagen plus Vitamin C immediately post-session",icon:"💊",iconColor:"#EC4899",iconBg:"#EC489920"},
-    {time:"12:00 PM",task:"Lunch: 35–40g protein. Zinc 15mg. Add ginger to meal for gingerol anti-inflammatory compound",icon:"🥗",iconColor:"#22CC00",iconBg:"#22CC0020"},
+    {time:"12:00 PM",task:"Lunch: 35–40g protein plus Zinc 15mg",icon:"🥗",iconColor:"#22CC00",iconBg:"#22CC0020"},
+    {time:"12:05 PM",task:"Add ginger to a meal today for its gingerol anti-inflammatory compound",icon:"🥗",iconColor:"#22CC00",iconBg:"#22CC0020"},
     {time:"3:00 PM",task:"Compression sleeve 30 min OR legs-up-wall 20 min to reduce edema",icon:"🧊",iconColor:"#38BDF8",iconBg:"#38BDF820"},
     {time:"4:30 PM",task:"Mental skills: sport psychology content OR journaling recovery goals and progress",icon:"🧠",iconColor:"#A855F7",iconBg:"#A855F720"},
-    {time:"7:00 PM",task:"Dinner: fatty fish or lean beef plus sweet potato plus greens. Magnesium 400mg",icon:"🍽️",iconColor:"#39FF14",iconBg:"#39FF1420"},
-    {time:"9:00 PM",task:"No screens 1hr before sleep. Read or meditate. 9-hr sleep target",icon:"😴",iconColor:"#6366F1",iconBg:"#6366F120"},
+    {time:"7:00 PM",task:"Dinner: fatty fish or lean beef plus sweet potato plus greens",icon:"🍽️",iconColor:"#39FF14",iconBg:"#39FF1420"},
+    {time:"7:05 PM",task:"Magnesium 400mg with dinner",icon:"💊",iconColor:"#6366F1",iconBg:"#6366F120"},
+    {time:"9:00 PM",task:"No screens 1hr before sleep. Read or meditate",icon:"😴",iconColor:"#6366F1",iconBg:"#6366F120"},
+    {time:"9:15 PM",task:"9-hr sleep target",icon:"😴",iconColor:"#6366F1",iconBg:"#6366F120"},
   ],
   [
-    {time:"6:30 AM",task:"Hydrate 500ml. Even 5-min gentle walking or crutch-assisted movement boosts morning circulation",icon:"💧",iconColor:"#38BDF8",iconBg:"#38BDF820"},
+    {time:"6:30 AM",task:"Hydrate 500ml",icon:"💧",iconColor:"#38BDF8",iconBg:"#38BDF820"},
+    {time:"6:35 AM",task:"Even 5-min gentle walking or crutch-assisted movement boosts morning circulation",icon:"🌅",iconColor:"#F59E0B",iconBg:"#F59E0B20"},
     {time:"7:00 AM",task:"Body check: rate pain, stiffness, energy 1 to 10. Adjust today intensity if pain above 5",icon:"🌅",iconColor:"#F59E0B",iconBg:"#F59E0B20"},
-    {time:"8:00 AM",task:"Breakfast plus D3 plus Omega-3. High-calorie day if energy is low — do not under-eat during recovery",icon:"💊",iconColor:"#6366F1",iconBg:"#6366F120"},
+    {time:"8:00 AM",task:"Breakfast — high-calorie day if energy is low, do not under-eat during recovery",icon:"🥗",iconColor:"#22CC00",iconBg:"#22CC0020"},
+    {time:"8:15 AM",task:"D3 plus Omega-3 with meal",icon:"💊",iconColor:"#6366F1",iconBg:"#6366F120"},
     {time:"10:00 AM",task:"Rehab session D: eccentric focus. Slow 3-second lowering phase. Eccentric loading heals tendons",icon:"🏋️",iconColor:"#39FF14",iconBg:"#39FF1420"},
-    {time:"10:30 AM",task:"Collagen 10g plus Vitamin C 500mg. Protein shake within 20 min post-session",icon:"💊",iconColor:"#EC4899",iconBg:"#EC489920"},
+    {time:"10:30 AM",task:"Collagen 10g plus Vitamin C 500mg",icon:"💊",iconColor:"#EC4899",iconBg:"#EC489920"},
+    {time:"10:35 AM",task:"Protein shake within 20 min post-session",icon:"💊",iconColor:"#EC4899",iconBg:"#EC489920"},
     {time:"12:30 PM",task:"Lunch: eggs plus whole grains plus leafy greens. Zinc 15mg with meal",icon:"🥗",iconColor:"#22CC00",iconBg:"#22CC0020"},
     {time:"2:30 PM",task:"20-min stationary bike easy pace. Pedaling lubricates joints without impact stress",icon:"🚴",iconColor:"#38BDF8",iconBg:"#38BDF820"},
     {time:"4:00 PM",task:"Stretch and foam roll 10 min full body avoiding injured site: quads, glutes, calves",icon:"💪",iconColor:"#A855F7",iconBg:"#A855F720"},
-    {time:"7:00 PM",task:"Dinner: Greek yogurt plus nuts plus fruit OR full protein meal. Magnesium 400mg",icon:"🍽️",iconColor:"#39FF14",iconBg:"#39FF1420"},
+    {time:"7:00 PM",task:"Dinner: Greek yogurt plus nuts plus fruit OR full protein meal",icon:"🍽️",iconColor:"#39FF14",iconBg:"#39FF1420"},
+    {time:"7:05 PM",task:"Magnesium 400mg",icon:"💊",iconColor:"#6366F1",iconBg:"#6366F120"},
     {time:"9:00 PM",task:"Sleep hygiene: cool room 65 to 68F, dark, no phone. 9-hr recovery window",icon:"😴",iconColor:"#6366F1",iconBg:"#6366F120"},
   ],
   [
     {time:"6:30 AM",task:"500ml water plus electrolyte tablet if yesterday was a heavy sweat session",icon:"💧",iconColor:"#38BDF8",iconBg:"#38BDF820"},
     {time:"7:00 AM",task:"10-min mindfulness meditation. Reduces cortisol which is proven to slow tissue healing",icon:"🌅",iconColor:"#F59E0B",iconBg:"#F59E0B20"},
-    {time:"8:00 AM",task:"High-protein start: protein shake plus eggs. D3 plus Omega-3 with meal",icon:"💊",iconColor:"#6366F1",iconBg:"#6366F120"},
+    {time:"8:00 AM",task:"High-protein start: protein shake plus eggs",icon:"🥗",iconColor:"#22CC00",iconBg:"#22CC0020"},
+    {time:"8:15 AM",task:"D3 plus Omega-3 with meal",icon:"💊",iconColor:"#6366F1",iconBg:"#6366F120"},
     {time:"10:00 AM",task:"Heavy rehab day: push to 80% effort if pain allows. Log reps and resistance used",icon:"🏋️",iconColor:"#39FF14",iconBg:"#39FF1420"},
-    {time:"10:30 AM",task:"Collagen plus Vitamin C immediately. Protein shake within 20 min post-session",icon:"💊",iconColor:"#EC4899",iconBg:"#EC489920"},
-    {time:"12:00 PM",task:"High-protein lunch: 50g protein today. Salmon plus rice plus avocado. Zinc 15mg",icon:"🥗",iconColor:"#22CC00",iconBg:"#22CC0020"},
+    {time:"10:30 AM",task:"Collagen plus Vitamin C immediately",icon:"💊",iconColor:"#EC4899",iconBg:"#EC489920"},
+    {time:"10:35 AM",task:"Protein shake within 20 min post-session",icon:"💊",iconColor:"#EC4899",iconBg:"#EC489920"},
+    {time:"12:00 PM",task:"High-protein lunch: 50g protein today. Salmon plus rice plus avocado",icon:"🥗",iconColor:"#22CC00",iconBg:"#22CC0020"},
+    {time:"12:05 PM",task:"Zinc 15mg with lunch",icon:"💊",iconColor:"#6366F1",iconBg:"#6366F120"},
     {time:"2:00 PM",task:"Ice bath or contrast therapy post heavy session. 10 min at 55F",icon:"🧊",iconColor:"#38BDF8",iconBg:"#38BDF820"},
     {time:"5:00 PM",task:"Review progress: compare this week exercises to last week. Are you stronger?",icon:"📊",iconColor:"#A855F7",iconBg:"#A855F720"},
-    {time:"7:00 PM",task:"Dinner: lean protein plus complex carbs plus vegetables. Magnesium 400mg",icon:"🍽️",iconColor:"#39FF14",iconBg:"#39FF1420"},
+    {time:"7:00 PM",task:"Dinner: lean protein plus complex carbs plus vegetables",icon:"🍽️",iconColor:"#39FF14",iconBg:"#39FF1420"},
+    {time:"7:05 PM",task:"Magnesium 400mg with dinner",icon:"💊",iconColor:"#6366F1",iconBg:"#6366F120"},
     {time:"9:00 PM",task:"Call or text someone on your support team. Recovery is social. Then sleep",icon:"😴",iconColor:"#6366F1",iconBg:"#6366F120"},
   ],
   [
     {time:"6:30 AM",task:"Active recovery day: 500ml water plus light 10-min walk outside if possible",icon:"💧",iconColor:"#38BDF8",iconBg:"#38BDF820"},
     {time:"7:00 AM",task:"Gentle stretch 20 min full body. Hold each stretch 30 to 45 seconds. Breathe deeply",icon:"🌅",iconColor:"#F59E0B",iconBg:"#F59E0B20"},
-    {time:"8:00 AM",task:"Breakfast plus D3 plus Omega-3. Rest day: still hit protein target with slight calorie reduction",icon:"💊",iconColor:"#6366F1",iconBg:"#6366F120"},
+    {time:"8:00 AM",task:"Breakfast — rest day: still hit protein target with slight calorie reduction",icon:"🥗",iconColor:"#22CC00",iconBg:"#22CC0020"},
+    {time:"8:15 AM",task:"D3 plus Omega-3 with meal",icon:"💊",iconColor:"#6366F1",iconBg:"#6366F120"},
     {time:"10:00 AM",task:"Weekly check-in: measure range of motion, note pain levels, log everything in journal",icon:"📋",iconColor:"#39FF14",iconBg:"#39FF1420"},
     {time:"10:30 AM",task:"Collagen plus Vitamin C even on rest days as tendon building is a continuous process",icon:"💊",iconColor:"#EC4899",iconBg:"#EC489920"},
-    {time:"12:00 PM",task:"Balanced lunch: protein plus fat plus fiber. Zinc 15mg",icon:"🥗",iconColor:"#22CC00",iconBg:"#22CC0020"},
+    {time:"12:00 PM",task:"Balanced lunch: protein plus fat plus fiber",icon:"🥗",iconColor:"#22CC00",iconBg:"#22CC0020"},
+    {time:"12:05 PM",task:"Zinc 15mg with lunch",icon:"💊",iconColor:"#6366F1",iconBg:"#6366F120"},
     {time:"2:00 PM",task:"Mental recovery: watch film of your sport, stay connected to the game mentally",icon:"🎬",iconColor:"#38BDF8",iconBg:"#38BDF820"},
     {time:"4:00 PM",task:"Light pool session 15 min OR gentle yoga. Active recovery not passive rest",icon:"🏊",iconColor:"#A855F7",iconBg:"#A855F720"},
-    {time:"7:00 PM",task:"Dinner: meal prep for the week ahead. Magnesium 400mg. Prioritize sleep tonight",icon:"🍽️",iconColor:"#39FF14",iconBg:"#39FF1420"},
-    {time:"9:00 PM",task:"Plan next week rehab goals. Write them down. Sleep 9 plus hours — biggest recovery day",icon:"😴",iconColor:"#6366F1",iconBg:"#6366F120"},
+    {time:"7:00 PM",task:"Dinner: meal prep for the week ahead",icon:"🍽️",iconColor:"#39FF14",iconBg:"#39FF1420"},
+    {time:"7:05 PM",task:"Magnesium 400mg with dinner",icon:"💊",iconColor:"#6366F1",iconBg:"#6366F120"},
+    {time:"9:00 PM",task:"Plan next week rehab goals. Write them down",icon:"📋",iconColor:"#A855F7",iconBg:"#A855F720"},
+    {time:"9:15 PM",task:"Sleep 9 plus hours — biggest recovery day",icon:"😴",iconColor:"#6366F1",iconBg:"#6366F120"},
   ],
 ];
 const DAILY_CONTENT = [
@@ -893,7 +921,13 @@ function getRewardTier(plan: "pro" | "elite" | "trial", totalRecoveryDays: numbe
 // it's always about the % of days you showed up and did real work, not a
 // fixed coins number that's easier for short programs and brutal for long
 // ones.
-const COMEBACK_COINS_PER_DAY = { journal: 10, score: 15, dayComplete: 15, streak: 5, wordle: 10, supplements: 5 };
+// Evenly weighted on purpose: 10 coins per category, 6 categories, 60/day max.
+// Earlier version leaned on task-completion alone (score+dayComplete = 30/60,
+// half the daily total) which made it possible to max coins out by just
+// checking off tasks and skipping the Journal, Wordle, and supplements
+// features entirely. Spreading it evenly means every app feature has to
+// actually get used to hit the max — no single shortcut dominates.
+const COMEBACK_COINS_PER_DAY = { journal: 10, score: 10, dayComplete: 10, streak: 10, wordle: 10, supplements: 10 };
 const COMEBACK_COINS_MAX_PER_DAY = Object.values(COMEBACK_COINS_PER_DAY).reduce((a, b) => a + b, 0); // 60
 const COINS_TIER_PCT_THRESHOLDS = [0, 0.30, 0.55, 0.80]; // index -> minimum % of max coins required
 // Coins earned on one specific day, from whatever's actually saved for that
@@ -1163,6 +1197,13 @@ function getSquadAutoReply(msg: string): { author: string; text: string } {
     text: pool[Math.floor(Math.random() * pool.length)],
   };
 }
+// Returns macro targets AND a concrete "what this actually looks like on a
+// plate" breakdown scaled to the person's own height/weight — not just raw
+// gram numbers, which most people can't picture. Serving sizes below are
+// standard nutrition-education rules of thumb (a "protein serving" ≈ 25-30g,
+// a "carb serving" ≈ 40-45g, a "fat serving" ≈ 12-14g, water ≈ 0.6oz per lb
+// of bodyweight — on the higher end of the common 0.5-1oz/lb range, since
+// rehab/inflammation control benefits from erring toward more hydration).
 function calcMacros(heightFt:string, heightIn:string, weightLbs:string, gender:string, goal:string) {
   const ft = parseFloat(heightFt); const inch = parseFloat(heightIn) || 0; const lbs = parseFloat(weightLbs);
   if (!ft || !lbs) return null;
@@ -1176,7 +1217,17 @@ function calcMacros(heightFt:string, heightIn:string, weightLbs:string, gender:s
   if (goal === "fast") { calories = tdee+100; proteinG = w*2.2; }
   if (goal === "fitness") { proteinG = w*1.8; }
   if (goal === "pain") { calories = tdee-100; proteinG = w*1.6; fatG = (calories*0.30)/9; carbG = (calories-(proteinG*4)-(fatG*9))/4; }
-  return { calories: Math.round(calories), protein: Math.round(proteinG), carbs: Math.round(Math.max(carbG,50)), fat: Math.round(fatG) };
+  const protein = Math.round(proteinG);
+  const carbs = Math.round(Math.max(carbG, 50));
+  const fat = Math.round(fatG);
+  const waterOz = Math.round(lbs * 0.6);
+  return {
+    calories: Math.round(calories), protein, carbs, fat, waterOz,
+    proteinServings: Math.max(1, Math.round(protein / 28)),
+    carbServings: Math.max(1, Math.round(carbs / 42)),
+    fatServings: Math.max(1, Math.round(fat / 13)),
+    waterGlasses: Math.max(1, Math.round(waterOz / 8)),
+  };
 }
 function formatTime(iso: string): string {
   const d = new Date(iso);
@@ -1344,19 +1395,24 @@ function NavBtn({ icon, label, active, onClick }: { icon: ReactNode; label: stri
     </button>
   );
 }
-// A hand-drawn flexed-arm/bicep icon in the exact same visual language as
-// every lucide-react icon used elsewhere in the nav (24x24 viewBox, 2px
-// stroke, round caps/joins, no fill) — so it inherits NavBtn's currentColor
-// styling (active neon / inactive muted) instead of showing up as a flat,
-// fixed-color emoji like the rest of the nav icons never do. Drawn locally
-// rather than imported from lucide-react because this app's pinned
-// lucide-react version isn't guaranteed to ship a literal "bicep" icon name.
-function BicepIcon({ size = 17 }: { size?: number }) {
+// A hand-drawn stroke icon didn't actually read as a bicep at any usable nav
+// size, so the Protocol tab icon goes back to the real 💪 emoji — but styled
+// so it fits the same active/inactive visual language as every lucide-react
+// icon in the nav instead of sitting there as a flat, fixed-color sticker.
+// SVG icons get this via `color: active ? T.neon : T.textMuted` (they're
+// unfilled strokes that just take on whatever color they're told); an emoji
+// glyph can't take a CSS color at all, so the closest equivalent is grayscale
+// + reduced opacity when inactive (echoes the muted, faded look of an
+// inactive lucide icon) and full color + opacity when active (echoes the
+// vivid, glowing look of an active one — NavBtn's own drop-shadow filter on
+// the wrapping div still applies on top of this for the glow).
+function EmojiNavIcon({ emoji, active, size = 17 }: { emoji: string; active: boolean; size?: number }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="5.5" cy="17.5" r="2" />
-      <path d="M7.2 16.3c-0.7-2.3-0.5-4.8 1.3-6.8 1-1.2 1.3-2.7 2.5-3.7 2-1.7 5-2.2 7-0.8 1.8 1.3 1.6 4-0.5 5.3-1.3 0.8-2.9 0.9-4.3 0.5-1.2-0.4-2.2 0.4-2.9 1.5-0.9 1.4-1.6 2.7-2.7 3.8Z" />
-    </svg>
+    <span style={{
+      display: "inline-block", fontSize: size, lineHeight: 1,
+      opacity: active ? 1 : 0.45,
+      filter: active ? "none" : "grayscale(1)",
+    }}>{emoji}</span>
   );
 }
 // A small gold "coin" badge for the Comeback Coins counter, stamped with
@@ -1365,11 +1421,17 @@ function BicepIcon({ size = 17 }: { size?: number }) {
 function ComebackCoin({ size = 18 }: { size?: number }) {
   return (
     <div style={{
-      width: size, height: size, borderRadius: size / 2, flexShrink: 0,
+      width: size, height: size, borderRadius: "50%", flexShrink: 0, boxSizing: "border-box",
       background: "linear-gradient(135deg,#FCD34D,#D97706)", border: "1.5px solid #FDE68A",
       display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 0 6px #F59E0B80",
+      lineHeight: 0,
     }}>
-      <svg width={size * 0.6} height={size * 0.6} viewBox="0 0 24 24" fill="none">
+      {/* display:"block" + the parent's lineHeight:0 remove the couple of
+          stray sub-pixels a bare inline <svg> otherwise leaves under its
+          baseline inside a flex box — without those two, the barbell mark
+          (which IS perfectly centered within its own 24x24 viewBox) can
+          still look nudged slightly off-center inside the round coin. */}
+      <svg width={size * 0.62} height={size * 0.62} viewBox="0 0 24 24" fill="none" style={{ display: "block" }}>
         <rect x="2" y="9" width="4" height="6" rx="1.5" fill="#3A2400" />
         <rect x="18" y="9" width="4" height="6" rx="1.5" fill="#3A2400" />
         <rect x="5" y="11" width="14" height="2" rx="1" fill="#3A2400" />
@@ -1728,7 +1790,7 @@ function SportSelect({ onNext, onBack }: { onNext: (s: typeof SPORTS[0]) => void
           </button>
           <Logo size={22} />
         </div>
-        <StepBar total={5} current={1} />
+        <StepBar total={6} current={1} />
         <h2 style={{ fontWeight: 900, fontSize: 22, color: T.textPrimary, marginBottom: 4 }}>What is your sport?</h2>
         <p style={{ fontSize: 13, color: T.textSecondary, marginBottom: 16 }}>You will join a squad of athletes from your sport.</p>
       </div>
@@ -1762,7 +1824,7 @@ function InjurySelect({ onNext, onBack }: { onNext: (inj: typeof INJURIES[0]) =>
           </button>
           <Logo size={22} />
         </div>
-        <StepBar total={5} current={2} />
+        <StepBar total={6} current={2} />
         <h2 style={{ fontWeight: 900, fontSize: 22, color: T.textPrimary, marginBottom: 4 }}>What is your injury?</h2>
         <p style={{ fontSize: 13, color: T.textSecondary, marginBottom: 16 }}>Select closest match — we fine-tune by severity next.</p>
       </div>
@@ -1791,7 +1853,7 @@ function SeveritySelect({ onNext, onBack }: { onNext: (sv: typeof SEVERITIES[0])
           </button>
           <Logo size={22} />
         </div>
-        <StepBar total={5} current={3} />
+        <StepBar total={6} current={3} />
         <h2 style={{ fontWeight: 900, fontSize: 22, color: T.textPrimary, marginBottom: 4 }}>How severe is it?</h2>
         <p style={{ fontSize: 13, color: T.textSecondary, marginBottom: 16 }}>This determines your protocol intensity.</p>
       </div>
@@ -1820,7 +1882,7 @@ function GoalSelect({ onNext, onBack }: { onNext: (g: typeof GOALS_LIST[0]) => v
           </button>
           <Logo size={22} />
         </div>
-        <StepBar total={5} current={4} />
+        <StepBar total={6} current={4} />
         <h2 style={{ fontWeight: 900, fontSize: 22, color: T.textPrimary, marginBottom: 4 }}>What is your goal?</h2>
         <p style={{ fontSize: 13, color: T.textSecondary, marginBottom: 16 }}>Shapes your daily task emphasis and macros.</p>
       </div>
@@ -1872,7 +1934,7 @@ function Paywall({ onUnlock, onBack, onTrial }: { onUnlock: (plan: "pro" | "elit
           </button>
           <Logo size={22} />
         </div>
-        <StepBar total={5} current={5} />
+        <StepBar total={6} current={5} />
         <h2 style={{ fontWeight: 900, fontSize: 22, color: T.textPrimary, marginBottom: 4 }}>Choose your plan</h2>
         <p style={{ fontSize: 13, color: T.textSecondary, marginBottom: 12 }}>Secure checkout via Stripe. Cancel anytime.</p>
       </div>
@@ -1946,6 +2008,35 @@ function Paywall({ onUnlock, onBack, onTrial }: { onUnlock: (plan: "pro" | "elit
             {checking ? "Verifying…" : "Unlock with license key"}
           </button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ── BODY PROFILE (now part of onboarding, right after plan selection) ─────────
+// Height/weight used to live buried in the Protocol tab's Nutrition section,
+// so a lot of people never found it and never saw a macro target at all.
+// Asking for it right after they pick a plan means their calorie/protein/
+// carb/fat targets are ready the moment they land on the dashboard, not
+// something they have to go hunting for later. Still fully optional — the
+// "Skip for now" link below routes to the exact same form later, inside
+// Protocol > Nutrition & Macros, for anyone who'd rather do it after.
+function BodyProfileOnboarding({ onSave, onSkip }: { onSave: (p: BodyProfile) => void; onSkip: () => void }) {
+  return (
+    <div style={{ minHeight: "100%", display: "flex", flexDirection: "column", background: T.bg }}>
+      <div style={{ padding: "20px 20px 0", position: "sticky", top: 0, background: T.bg, zIndex: 10 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+          <Logo size={22} />
+        </div>
+        <StepBar total={6} current={6} />
+        <h2 style={{ fontWeight: 900, fontSize: 22, color: T.textPrimary, marginBottom: 4 }}>Last step — your body profile</h2>
+        <p style={{ fontSize: 13, color: T.textSecondary, marginBottom: 16 }}>So your calorie and macro targets are ready the second you land on your dashboard — no digging through menus later.</p>
+      </div>
+      <div style={{ flex: 1, overflowY: "auto", padding: "0 20px 32px" }}>
+        <BodyProfileForm onSave={onSave} />
+        <button onClick={onSkip} style={{ width: "100%", background: "none", border: "none", cursor: "pointer", fontSize: 12, color: T.textMuted, textDecoration: "underline", padding: "6px 0" }}>
+          Skip for now — I'll fill this in later
+        </button>
       </div>
     </div>
   );
@@ -2166,7 +2257,7 @@ function wordleTileColor(state: WordleLetterState | undefined): { bg: string; bo
   if (state === "absent") return { bg: "#DC2626", border: "#DC2626", text: "#FFFFFF" };
   return { bg: "transparent", border: T.border, text: T.textPrimary };
 }
-function DailyWordle() {
+function DailyWordle({ onResult }: { onResult?: (result: { guesses: string[]; solved: boolean; failed: boolean }) => void }) {
   const todayKey = todayStr();
   const answer = useMemo(() => wordleWordForDate(todayKey), [todayKey]);
   const saved0 = loadState();
@@ -2177,6 +2268,11 @@ function DailyWordle() {
   const solved = guesses.some(g => g === answer);
   const failed = !solved && guesses.length >= 6;
   const gameOver = solved || failed;
+  // Persisting straight to localStorage (like every other per-day toggle in
+  // this app) is what makes the game state survive a refresh — but nothing
+  // reads localStorage again until next mount, so without also calling
+  // onResult() here, the Coins counter and Recovery Score elsewhere on the
+  // dashboard wouldn't notice a solve happened until the next full reload.
   const persist = useCallback((nextGuesses: string[]) => {
     const isSolved = nextGuesses.some(g => g === answer);
     const isFailed = !isSolved && nextGuesses.length >= 6;
@@ -2186,7 +2282,8 @@ function DailyWordle() {
       s.wordleResults[todayKey] = { guesses: nextGuesses, solved: isSolved, failed: isFailed };
       saveState(s);
     }
-  }, [answer, todayKey]);
+    onResult?.({ guesses: nextGuesses, solved: isSolved, failed: isFailed });
+  }, [answer, todayKey, onResult]);
   const submitGuess = useCallback(() => {
     if (gameOver || current.length !== 5) {
       if (current.length !== 5 && !gameOver) { setShakeError("Needs 5 letters"); setTimeout(() => setShakeError(null), 1200); }
@@ -2363,9 +2460,9 @@ function AppDashboard({ saved, onReset, onUpgrade, onOpenAccount, authUser }: {
     });
   }, [todayKey]);
   const dailyContent = DAILY_CONTENT[dayNum % DAILY_CONTENT.length];
-  const morningTasks   = tasks.slice(0, 3);
-  const afternoonTasks = tasks.slice(3, 7);
-  const eveningTasks   = tasks.slice(7);
+  const morningTasks   = tasks.slice(0, 5);
+  const afternoonTasks = tasks.slice(5, 10);
+  const eveningTasks   = tasks.slice(10);
   const coachQuote = allDone
     ? COACH_QUOTES.goal[dayNum % COACH_QUOTES.goal.length]
     : !saved.streakAlive
@@ -2461,22 +2558,35 @@ function AppDashboard({ saved, onReset, onUpgrade, onOpenAccount, authUser }: {
     const s = loadState();
     if (s) { s.rewardClaim = claim; saveState(s); }
   }, []);
-  // Recovery Score — recomputed live off today's actual in-session state
-  // (checked tasks + today's log) layered on top of the saved history, so
-  // checking off a task or logging a meal moves the needle immediately
-  // instead of waiting for a remount.
-  const scoreInputState: SavedState = {
+  // Today's Wordle result, lifted up from <DailyWordle/> via its onResult
+  // callback — solving (or failing) the word writes straight to localStorage
+  // from inside that component (same pattern as every other per-day toggle),
+  // but nothing here would notice that happened until next reload without
+  // also mirroring it into this piece of state.
+  const [wordleToday, setWordleToday] = useState<{ guesses: string[]; solved: boolean; failed: boolean }>(() => {
+    const s = loadState();
+    return s?.wordleResults?.[todayKey] || { guesses: [], solved: false, failed: false };
+  });
+  // The single "live" view of today that both the Recovery Score and the
+  // Comeback Coins counter read from — every piece of state that can change
+  // mid-session (tasks checked, supplements taken, today's food/exercise
+  // log, journal, wordle) is layered on top of the saved history here, so
+  // checking a box anywhere in the app moves BOTH the score and the coins
+  // counter immediately instead of waiting for a remount/reload to catch up.
+  const liveSavedState: SavedState = {
     ...saved,
     completedTasks: { ...saved.completedTasks, [todayKey]: checked },
+    suppChecked: { ...saved.suppChecked, [todayKey]: suppChecked },
     dailyLogs: { ...saved.dailyLogs, [todayKey]: todayLog },
     diaryEntries: diaryHistory,
+    wordleResults: { ...saved.wordleResults, [todayKey]: wordleToday },
   };
-  const recoveryScore = computeRecoveryScore(scoreInputState, macros);
+  const recoveryScore = computeRecoveryScore(liveSavedState, macros);
   // Comeback Coins earned so far, for the small coin counter shown next to
-  // the streak fire on Home and Today — this is the running wallet total,
-  // not just today's, so it's read off the saved history directly rather
-  // than the live in-session scoreInputState above.
-  const coinsInfo = comebackCoinsInfo(saved, totalRecoveryDays, saved.plan);
+  // the streak fire on Home and Today — reads off the same live state above
+  // so it updates the instant a task, supplement, journal entry, or Wordle
+  // changes, not just after a save/reload.
+  const coinsInfo = comebackCoinsInfo(liveSavedState, totalRecoveryDays, saved.plan);
   const totalCoinsEarned = coinsInfo?.earned ?? 0;
   const handleLike = (postId: string) => {
     setPosts(prev => prev.map(p => p.id === postId ? { ...p, likes: p.likedByMe ? p.likes - 1 : p.likes + 1, likedByMe: !p.likedByMe } : p));
@@ -2547,10 +2657,9 @@ function AppDashboard({ saved, onReset, onUpgrade, onOpenAccount, authUser }: {
               </div>
             </Card>
           ) : (() => {
-            const coinsInfo = comebackCoinsInfo(saved, totalRecoveryDays, saved.plan);
             if (!coinsInfo) return null;
             const tier = { label: coinsInfo.label, giftCardAmount: coinsInfo.amount, tee: coinsInfo.tee };
-            const todayCoins = dailyCoinsBreakdown(saved, todayKey, dayNum);
+            const todayCoins = dailyCoinsBreakdown(liveSavedState, todayKey, dayNum);
             const COINS_CHECKLIST: { key: keyof typeof todayCoins; icon: string; label: string; pts: number }[] = [
               { key: "journal", icon: "📓", label: "Complete today's Journal", pts: COMEBACK_COINS_PER_DAY.journal },
               { key: "score", icon: "📊", label: "Hit a daily score of 70+", pts: COMEBACK_COINS_PER_DAY.score },
@@ -2684,7 +2793,7 @@ function AppDashboard({ saved, onReset, onUpgrade, onOpenAccount, authUser }: {
                 style={{ width: 36, height: 36, borderRadius: 18, background: T.surface, border: `1px solid ${authUser ? T.neon + "60" : T.border}`, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
                 {authUser ? <Cloud size={16} color={T.neon} /> : <UserIcon size={16} color={T.textMuted} />}
               </button>
-              <div style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 20, padding: "6px 12px", display: "flex", alignItems: "center", gap: 8 }}>
+              <div style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 20, padding: "8px 15px", display: "flex", alignItems: "center", gap: 11 }}>
                 <StreakFire streak={saved.streak} alive={saved.streakAlive} />
                 <div style={{ width: 1, height: 14, background: T.border }} />
                 <CoinsCounter amount={totalCoinsEarned} />
@@ -2740,16 +2849,23 @@ function AppDashboard({ saved, onReset, onUpgrade, onOpenAccount, authUser }: {
               <span style={{ fontSize: 10, color: T.textMuted }}>Day {(injury?.weeks || 36) * 7}</span>
             </div>
           </Card>
-          <div className="cb-stat-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 16 }}>
-            <Card style={{ textAlign: "center", padding: "12px 8px" }}>
+          <div className="cb-stat-grid" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10, marginBottom: 16 }}>
+            <Card style={{ textAlign: "center", padding: "12px 6px" }}>
               <div style={{ display: "flex", justifyContent: "center", marginBottom: 4 }}><StreakFire streak={saved.streak} alive={saved.streakAlive} /></div>
               <div style={{ fontSize: 10, color: T.textMuted, fontWeight: 600 }}>Streak</div>
             </Card>
-            <Card style={{ textAlign: "center", padding: "12px 8px" }}>
+            <Card style={{ textAlign: "center", padding: "12px 6px" }}>
               <div style={{ fontWeight: 900, fontSize: 16, color: allDone ? T.neon : T.textPrimary, marginBottom: 4, textShadow: allDone ? shadow.neon : "none" }}>{doneCount}/{tasks.length}</div>
               <div style={{ fontSize: 10, color: T.textMuted, fontWeight: 600 }}>Today</div>
             </Card>
-            <Card style={{ textAlign: "center", padding: "12px 8px" }}>
+            <Card style={{ textAlign: "center", padding: "12px 6px" }}>
+              <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 3, marginBottom: 4 }}>
+                <ComebackCoin size={14} />
+                <span style={{ fontWeight: 900, fontSize: 16, color: "#F59E0B" }}>{totalCoinsEarned}</span>
+              </div>
+              <div style={{ fontSize: 10, color: T.textMuted, fontWeight: 600 }}>Coins</div>
+            </Card>
+            <Card style={{ textAlign: "center", padding: "12px 6px" }}>
               <div style={{ fontWeight: 900, fontSize: 14, color: T.textPrimary, marginBottom: 4 }}>Phase {phase}</div>
               <div style={{ fontSize: 10, color: T.textMuted, fontWeight: 600 }}>Stage</div>
             </Card>
@@ -2827,7 +2943,7 @@ function AppDashboard({ saved, onReset, onUpgrade, onOpenAccount, authUser }: {
                   <span style={{ fontSize: 12, color: T.textSecondary, fontWeight: 600 }}>{injury?.label}</span>
                 </div>
               </div>
-              <div style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 20, padding: "7px 13px", display: "flex", alignItems: "center", gap: 8 }}>
+              <div style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 20, padding: "8px 15px", display: "flex", alignItems: "center", gap: 11 }}>
                 <StreakFire streak={saved.streak} alive={saved.streakAlive} />
                 <div style={{ width: 1, height: 14, background: T.border }} />
                 <CoinsCounter amount={totalCoinsEarned} />
@@ -2838,14 +2954,14 @@ function AppDashboard({ saved, onReset, onUpgrade, onOpenAccount, authUser }: {
               <p style={{ fontSize: 13, fontStyle: "italic", color: T.textPrimary, lineHeight: 1.65, marginTop: 8, fontFamily: "Georgia,serif" }}>{dailyContent.quote}</p>
               <p style={{ fontSize: 10, fontWeight: 700, color: T.neon, marginTop: 6 }}>— {dailyContent.text}</p>
             </Card>
-            <DailyWordle />
+            <DailyWordle onResult={setWordleToday} />
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
               <h2 style={{ fontWeight: 900, fontSize: 18, color: T.textPrimary }}>Today's Protocol</h2>
               <span style={{ fontSize: 10, fontWeight: 700, color: allDone ? T.neon : T.textMuted, background: T.surface, border: `1px solid ${allDone ? T.neon : T.border}`, borderRadius: 8, padding: "4px 8px", boxShadow: allDone ? shadow.neon : "none" }}>{doneCount}/{tasks.length} done</span>
             </div>
           </div>
           <div style={{ padding: "0 18px" }}>
-            {([["🌅 Morning", morningTasks, 0], ["☀️ Afternoon", afternoonTasks, 3], ["🌙 Evening", eveningTasks, 7]] as [string, Task[], number][]).map(([label, list, offset]) => (
+            {([["🌅 Morning", morningTasks, 0], ["☀️ Afternoon", afternoonTasks, 5], ["🌙 Evening", eveningTasks, 10]] as [string, Task[], number][]).map(([label, list, offset]) => (
               <div key={label}>
                 <div style={{ fontSize: 13, fontWeight: 800, color: T.textSecondary, marginBottom: 8, marginTop: 4 }}>{label}</div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 18 }}>
@@ -2933,16 +3049,26 @@ function AppDashboard({ saved, onReset, onUpgrade, onOpenAccount, authUser }: {
                   { label: "Protein",  val: `${macros.protein}g`, unit: "priority", color: T.neon },
                   { label: "Carbs",    val: `${macros.carbs}g`,   unit: "energy",   color: "#F59E0B" },
                   { label: "Fat",      val: `${macros.fat}g`,     unit: "joints",   color: T.teal },
+                  { label: "Water",    val: `${macros.waterOz}oz`, unit: "hydration", color: "#38BDF8" },
                 ].map((m, i) => (
-                  <div key={i} style={{ background: T.card, borderRadius: 12, padding: "10px", textAlign: "center", border: `1px solid ${T.border}` }}>
+                  <div key={i} style={{ background: T.card, borderRadius: 12, padding: "10px", textAlign: "center", border: `1px solid ${T.border}`, gridColumn: m.label === "Water" ? "1 / -1" : undefined }}>
                     <div style={{ fontWeight: 900, fontSize: 18, color: m.color, textShadow: m.color === T.neon ? shadow.neon : "none" }}>{m.val}</div>
                     <div style={{ fontWeight: 700, fontSize: 11, color: T.textPrimary }}>{m.label}</div>
                     <div style={{ fontSize: 9, color: T.textMuted }}>{m.unit}</div>
                   </div>
                 ))}
               </div>
-              <div style={{ fontSize: 11, color: T.textSecondary, lineHeight: 1.5 }}>Based on Mifflin-St Jeor formula. Protein at 2g/kg bodyweight — elevated for injury recovery per sports nutrition research.</div>
-              <button onClick={() => setBodyProfile(null)} style={{ marginTop: 8, fontSize: 11, color: T.textMuted, background: "none", border: "none", cursor: "pointer", textDecoration: "underline" }}>Update my measurements</button>
+              <div style={{ fontSize: 11, color: T.textSecondary, lineHeight: 1.5, marginBottom: 12 }}>Based on the Mifflin-St Jeor formula using your exact height and weight. Protein at 2g/kg bodyweight — elevated above general fitness guidance because injury recovery burns through protein faster for tissue repair.</div>
+              <div style={{ background: T.card, borderRadius: 12, padding: "12px 14px", border: `1px solid ${T.border}` }}>
+                <div style={{ fontWeight: 800, fontSize: 11, color: T.textPrimary, marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.3px" }}>What this looks like today</div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  <div style={{ fontSize: 12, color: T.textSecondary, lineHeight: 1.5 }}>🍗 <strong style={{ color: T.textPrimary }}>~{macros.proteinServings} protein servings</strong> — a serving is about a palm-sized piece of chicken/fish, 2 eggs, a scoop of protein powder, or a cup of Greek yogurt (~28g each)</div>
+                  <div style={{ fontSize: 12, color: T.textSecondary, lineHeight: 1.5 }}>🍠 <strong style={{ color: T.textPrimary }}>~{macros.carbServings} carb servings</strong> — a serving is about 1 cup cooked rice or oats, a medium sweet potato, or 2 slices of bread (~42g each)</div>
+                  <div style={{ fontSize: 12, color: T.textSecondary, lineHeight: 1.5 }}>🥑 <strong style={{ color: T.textPrimary }}>~{macros.fatServings} fat servings</strong> — a serving is about 1 tbsp olive oil, a small handful of almonds, or half an avocado (~13g each)</div>
+                  <div style={{ fontSize: 12, color: T.textSecondary, lineHeight: 1.5 }}>💧 <strong style={{ color: T.textPrimary }}>~{macros.waterGlasses} glasses of water</strong> — about {macros.waterOz}oz total, more on heavy sweat or ice-bath days</div>
+                </div>
+              </div>
+              <button onClick={() => setBodyProfile(null)} style={{ marginTop: 10, fontSize: 11, color: T.textMuted, background: "none", border: "none", cursor: "pointer", textDecoration: "underline" }}>Update my measurements</button>
             </Card>
           ) : null}
           {DIET_GUIDE.map((d, i) => (
@@ -3183,7 +3309,7 @@ function AppDashboard({ saved, onReset, onUpgrade, onOpenAccount, authUser }: {
           widths — they divide the bar evenly instead of stacking up. */}
       <div style={{ flexShrink: 0, background: T.surface, borderTop: `1px solid ${T.border}`, paddingBottom: "env(safe-area-inset-bottom,12px)", paddingTop: 8, paddingLeft: 2, paddingRight: 2, display: "flex", justifyContent: "space-between", alignItems: "flex-end", zIndex: 50 }}>
         <NavBtn icon={<Home size={17} />}     label="Home"     active={tab === "home"}     onClick={() => setTab("home")} />
-        <NavBtn icon={<BicepIcon size={17} />} label="Protocol" active={tab === "protocol"} onClick={() => setTab("protocol")} />
+        <NavBtn icon={<EmojiNavIcon emoji="💪" active={tab === "protocol"} size={17} />} label="Protocol" active={tab === "protocol"} onClick={() => setTab("protocol")} />
         <NavBtn icon={<BookOpen size={17} />} label="Journal"  active={tab === "diary"}    onClick={() => setTab("diary")} />
         <button onClick={() => setTab("today")} style={{ width: 52, height: 52, borderRadius: 26, background: tab === "today" ? T.neon : T.card, display: "flex", alignItems: "center", justifyContent: "center", border: `2px solid ${tab === "today" ? T.neon : T.border}`, boxShadow: tab === "today" ? shadow.neon : shadow.sm, cursor: "pointer", marginBottom: 3, flexShrink: 0 }}>
           <Dumbbell size={20} color={tab === "today" ? T.bg : T.textSecondary} />
@@ -3519,13 +3645,17 @@ function GlobalMobileStyles() {
 
 // ── ROOT APP ──────────────────────────────────────────────────────────────────
 export default function App() {
-  type Screen = "welcome" | "sport" | "injury" | "severity" | "goal" | "paywall" | "dashboard" | "verifying";
+  type Screen = "welcome" | "sport" | "injury" | "severity" | "goal" | "paywall" | "bodyProfile" | "dashboard" | "verifying";
   const [saved, setSaved] = useState<SavedState | null>(null);
   const [screen, setScreen] = useState<Screen>("verifying");
   const [sport,    setSport]    = useState<typeof SPORTS[0] | undefined>();
   const [injury,   setInjury]   = useState<typeof INJURIES[0] | undefined>();
   const [severity, setSeverity] = useState<typeof SEVERITIES[0] | undefined>();
   const [goal,     setGoal]     = useState<typeof GOALS_LIST[0] | undefined>();
+  // Plan chosen at Paywall, held here while the new bodyProfile onboarding
+  // step (right after plan selection) collects height/weight before the
+  // dashboard is actually built — see finalizeSetup below.
+  const [pendingPlan, setPendingPlan] = useState<{ plan: "pro" | "elite" | "trial"; code: string } | null>(null);
   const [showAccount, setShowAccount] = useState(false);
   const [authUser, setAuthUser] = useState<FirebaseUser | null>(null);
   const lastSyncedUidRef = useRef<string | null>(null);
@@ -3543,8 +3673,8 @@ export default function App() {
       const s = loadState();
       if (!s) {
         // No finished setup yet — if a refresh happened mid-quiz (sport/
-        // injury/severity/goal/paywall screens), restore exactly where they
-        // left off instead of bouncing them back to Welcome.
+        // injury/severity/goal/paywall/bodyProfile screens), restore exactly
+        // where they left off instead of bouncing them back to Welcome.
         const progress = loadOnboardingProgress();
         if (progress) {
           const restoredSport    = progress.sportId    ? SPORTS.find(x => x.id === progress.sportId)       : undefined;
@@ -3555,7 +3685,14 @@ export default function App() {
           if (restoredInjury) setInjury(restoredInjury);
           if (restoredSeverity) setSeverity(restoredSeverity);
           if (restoredGoal) setGoal(restoredGoal);
-          const validScreens: Screen[] = ["welcome", "sport", "injury", "severity", "goal", "paywall"];
+          // A refresh mid-bodyProfile still has a real plan+license behind
+          // it (checkout already happened) — restore that too, or the user
+          // would land on the body-profile form with no plan to finalize.
+          if (progress.screen === "bodyProfile") {
+            const restoredPlan: "pro" | "elite" | "trial" = progress.pendingIsTrial ? "trial" : (progress.pendingPlan || "pro");
+            setPendingPlan({ plan: restoredPlan, code: progress.pendingLicense || "" });
+          }
+          const validScreens: Screen[] = ["welcome", "sport", "injury", "severity", "goal", "paywall", "bodyProfile"];
           setScreen(validScreens.includes(progress.screen as Screen) ? (progress.screen as Screen) : "welcome");
           return;
         }
@@ -3596,8 +3733,11 @@ export default function App() {
     if (screen === "verifying" || screen === "dashboard") return;
     saveOnboardingProgress({
       screen, sportId: sport?.id, injuryId: injury?.id, severityId: severity?.id, goalId: goal?.id,
+      pendingPlan: pendingPlan && pendingPlan.plan !== "trial" ? pendingPlan.plan : undefined,
+      pendingLicense: pendingPlan?.code,
+      pendingIsTrial: pendingPlan?.plan === "trial",
     });
-  }, [screen, sport, injury, severity, goal]);
+  }, [screen, sport, injury, severity, goal, pendingPlan]);
 
   // Cloud account sync — subscribes once; no-ops entirely if Firebase hasn't
   // been configured (see FIREBASE_SETUP.md). On sign-in, pulls whichever
@@ -3624,23 +3764,27 @@ export default function App() {
     return () => unsub();
   }, []);
 
-  const finalizeSetup = (plan: "pro" | "elite" | "trial", code: string) => {
+  const finalizeSetup = (plan: "pro" | "elite" | "trial", code: string, bodyProfile: BodyProfile | null = null) => {
     if (!sport || !injury || !severity || !goal) return;
     const today = todayStr();
     const ns: SavedState = {
       sportId: sport.id, injuryId: injury.id, severityId: severity.id, goalId: goal.id,
       startDate: today, lastActiveDate: today, streak: 1, streakAlive: true,
-      completedTasks: {}, suppChecked: {}, bodyProfile: null, dailyLogs: {}, diaryEntries: {}, posts: {},
+      completedTasks: {}, suppChecked: {}, bodyProfile, dailyLogs: {}, diaryEntries: {}, posts: {},
       rewardsConsent: null, rewardClaim: null,
       plan, licenseCode: code,
       trialEndsAt: plan === "trial" ? Date.now() + TRIAL_HOURS * 60 * 60 * 1000 : null,
     };
     if (plan === "trial") markTrialUsed();
     clearOnboardingProgress();
+    setPendingPlan(null);
     saveState(ns); setSaved(ns); setScreen("dashboard");
   };
-  const handlePlanUnlock = (plan: "pro" | "elite", code: string) => finalizeSetup(plan, code);
-  const handleTrial = () => finalizeSetup("trial", "");
+  // Plan selection no longer finalizes setup directly — it hands off to the
+  // bodyProfile screen first (see Screen type above), which is what
+  // actually calls finalizeSetup once height/weight are captured or skipped.
+  const handlePlanUnlock = (plan: "pro" | "elite", code: string) => { setPendingPlan({ plan, code }); setScreen("bodyProfile"); };
+  const handleTrial = () => { setPendingPlan({ plan: "trial", code: "" }); setScreen("bodyProfile"); };
   const handleUpgradeToElite = (code: string) => {
     const s = loadState();
     if (!s) return;
@@ -3650,6 +3794,7 @@ export default function App() {
   const handleReset = () => {
     clearState(); clearOnboardingProgress(); setSaved(null);
     setSport(undefined); setInjury(undefined); setSeverity(undefined); setGoal(undefined);
+    setPendingPlan(null);
     setScreen("welcome");
   };
 
@@ -3664,6 +3809,14 @@ export default function App() {
       {screen === "severity" && <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column" }}><SeveritySelect onNext={sv => { setSeverity(sv); setScreen("goal");     }} onBack={() => setScreen("injury")} /></div>}
       {screen === "goal"     && <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column" }}><GoalSelect     onNext={g  => { setGoal(g);     setScreen("paywall");  }} onBack={() => setScreen("severity")} /></div>}
       {screen === "paywall"  && <Paywall onUnlock={handlePlanUnlock} onBack={() => setScreen("goal")} onTrial={handleTrial} />}
+      {screen === "bodyProfile" && pendingPlan && (
+        <div style={{ flex: 1, overflowY: "auto" }}>
+          <BodyProfileOnboarding
+            onSave={bp => finalizeSetup(pendingPlan.plan, pendingPlan.code, bp)}
+            onSkip={() => finalizeSetup(pendingPlan.plan, pendingPlan.code, null)}
+          />
+        </div>
+      )}
       {screen === "dashboard" && saved && (
         <>
           <AppDashboard saved={saved} onReset={handleReset} onUpgrade={handleUpgradeToElite}
