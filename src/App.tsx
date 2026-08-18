@@ -270,12 +270,13 @@ const ELITE_FEATURES = [
   "Full daily food + exercise log — track every meal and workout, MyFitnessPal-style, and watch your score respond",
   "Priority support",
 ];
-function base64urlToBytes(s: string): Uint8Array {
+function base64urlToBuffer(s: string): ArrayBuffer {
   const b64 = s.replace(/-/g, "+").replace(/_/g, "/") + "===".slice((s.length + 3) % 4);
   const bin = atob(b64);
-  const bytes = new Uint8Array(bin.length);
+  const buf = new ArrayBuffer(bin.length);
+  const bytes = new Uint8Array(buf);
   for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-  return bytes;
+  return buf;
 }
 type LicenseResult =
   | { valid: true; plan: "pro" | "elite"; issuedAt: number; id: string }
@@ -287,7 +288,7 @@ async function verifyLicenseCode(code: string): Promise<LicenseResult> {
   const [, payloadPart, sigPart] = parts;
   let payload: any;
   try {
-    payload = JSON.parse(new TextDecoder().decode(base64urlToBytes(payloadPart)));
+    payload = JSON.parse(new TextDecoder().decode(base64urlToBuffer(payloadPart)));
   } catch {
     return { valid: false, reason: "bad-payload" };
   }
@@ -298,8 +299,8 @@ async function verifyLicenseCode(code: string): Promise<LicenseResult> {
     const ok = await subtle.verify(
       { name: "ECDSA", hash: "SHA-256" } as EcdsaParams,
       publicKey,
-      base64urlToBytes(sigPart),
-      base64urlToBytes(payloadPart)
+      base64urlToBuffer(sigPart),
+      base64urlToBuffer(payloadPart)
     );
     if (!ok) return { valid: false, reason: "bad-signature" };
     return { valid: true, plan: payload.plan, issuedAt: payload.iat, id: payload.id };
@@ -1222,11 +1223,11 @@ function BodyProfileForm({ onSave }: { onSave: (p: BodyProfile) => void }) {
       <h3 style={{ fontWeight: 900, fontSize: 16, color: T.textPrimary, marginBottom: 4 }}>Your Body Profile</h3>
       <p style={{ fontSize: 12, color: T.textSecondary, marginBottom: 16 }}>We calculate exact daily macro targets — and, on Elite, your Recovery Score's calorie match — from this.</p>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 10 }}>
-        {([["HEIGHT (ft)", "heightFt", "5"], ["HEIGHT (in)", "heightIn", "9"], ["WEIGHT (lbs)", "weightLbs", "165"]] as [string,string,string][]).map(([label, key, ph]) => (
+        {([["HEIGHT (ft)", "heightFt", "5"], ["HEIGHT (in)", "heightIn", "9"], ["WEIGHT (lbs)", "weightLbs", "165"]] as [string, keyof BodyProfile, string][]).map(([label, key, ph]) => (
           <div key={key}>
             <label style={{ fontSize: 10, fontWeight: 700, color: T.textMuted, display: "block", marginBottom: 4 }}>{label}</label>
             <input type="number" placeholder={ph}
-              value={(form as Record<string, string>)[key]}
+              value={form[key]}
               onChange={e => setForm(f => ({ ...f, [key]: e.target.value }))}
               style={{ width: "100%", padding: "10px", borderRadius: 10, border: `1.5px solid ${T.border}`, background: T.card, color: T.textPrimary, fontSize: 14, fontFamily: "inherit", boxSizing: "border-box", outline: "none" }} />
           </div>
