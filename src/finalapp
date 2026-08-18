@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback, useRef, ReactNode } from "react";
-import { Check, ChevronRight, Gauge, Users, Home, BookOpen, Dumbbell, RotateCcw, Heart, MessageCircle, Send, ArrowLeft, Lock, Crown, X, Clock, LogIn, LogOut, Cloud, User as UserIcon, UtensilsCrossed, Flame, Plus, Trash2, Bot, BookHeart, Gift, Camera } from "lucide-react";
+import React, { useState, useEffect, useCallback, useRef, useMemo, ReactNode } from "react";
+import { Check, ChevronRight, Gauge, Users, Home, BookOpen, Dumbbell, RotateCcw, Heart, MessageCircle, Send, ArrowLeft, Lock, Crown, X, Clock, LogIn, LogOut, Cloud, User as UserIcon, UtensilsCrossed, Flame, Plus, Trash2, Bot, Gift, Camera, Delete } from "lucide-react";
 // Cloud account sync (optional — degrades gracefully if Firebase isn't configured yet,
 // see FIREBASE_SETUP.md). Requires `npm install firebase` in whatever project builds
 // this file. Nothing here runs unless FIREBASE_CONFIG below is filled in.
@@ -146,6 +146,13 @@ interface SavedState {
   // Bumped on every save; used to pick the freshest copy when merging local
   // vs. cloud state after signing in on a second device.
   updatedAt?: number;
+  // Daily sports Wordle mini-game, keyed by date string — one entry per day
+  // played. `guesses` holds each submitted 5-letter guess in order (max 6,
+  // same as real Wordle); `solved` is true once the exact word is guessed;
+  // `failed` is true if all 6 guesses were used without solving. Solving it
+  // (not just attempting it, and not running out of attempts) is one of the
+  // Comeback Bucks-earning actions for that day — see COMEBACK BUCKS below.
+  wordleResults?: Record<string, { guesses: string[]; solved: boolean; failed: boolean }>;
 }
 function todayStr(): string {
   return new Date().toISOString().slice(0, 10);
@@ -258,9 +265,9 @@ const PUBLIC_KEY_JWK: JsonWebKey = {
   crv: "P-256",
 } as JsonWebKey;
 const PRO_FEATURES = [
-  "Full personalised recovery protocol — every phase, every sport",
+  "Full personalized recovery protocol — every phase, every sport",
   "Daily task tracking with streaks and milestones",
-  "Personalised nutrition macros and supplement schedule",
+  "Personalized nutrition macros and supplement schedule",
   "Sport squad community — post, reply, connect",
   "Zero ads, ever",
 ];
@@ -492,19 +499,138 @@ const SPORTS = [
    quotes:['"Eccentric loading is the cheat code."','"Second ACL — came back 3 weeks early."','"Fix the root cause."','"Faith over fear."','"Every drill served my return."']},
 ];
 const INJURIES = [
-  {id:"acl",label:"ACL Tear",icon:"🦵",weeks:36,phase1:"Weeks 1–6: Swelling control, quad activation, ROM 0–90°. Ice 20 min/hr.",phase2:"Weeks 7–16: Strength rebuild, single-leg press, bike, Nordic curls wk 10.",phase3:"Weeks 17–36: Sport-specific drills, hop test >85% symmetry."},
-  {id:"meniscus",label:"Meniscus Tear",icon:"🦵",weeks:24,phase1:"Weeks 1–4: Crutches, ice, pain management. Straight-leg raises only. No flexion past 90°.",phase2:"Weeks 5–12: Quad/hamstring balance, bike week 6. No twisting.",phase3:"Weeks 13–24: Lateral movement, cutting drills, physician clearance."},
-  {id:"ankle",label:"Ankle Sprain",icon:"🦶",weeks:8,phase1:"Days 1–7: POLICE protocol. No weight-bearing Grade 2+.",phase2:"Weeks 2–4: Proprioception, resistance bands, calf raises.",phase3:"Weeks 5–8: Plyometrics, single-leg balance over 30 seconds."},
-  {id:"hamstring",label:"Hamstring Strain",icon:"🦵",weeks:12,phase1:"Weeks 1–2: Active rest, ice. NO passive static stretching — increases re-tear risk.",phase2:"Weeks 3–6: Nordic eccentric program (Askling protocol), bike week 3.",phase3:"Weeks 7–12: Graduated sprint 60 to 100% with weekly H-test."},
-  {id:"rotator",label:"Rotator Cuff",icon:"💪",weeks:20,phase1:"Weeks 1–6: Sling, pendulums, zero active elevation. Cryotherapy 20 min 5x/day.",phase2:"Weeks 7–14: Bands, scapular stability. External/internal rotation at 0 degrees.",phase3:"Weeks 15–20: Progressive overhead, throwing program. ASES score 85+."},
-  {id:"achilles",label:"Achilles Tendon",icon:"🦶",weeks:26,phase1:"Weeks 1–8: Boot immobilization. Upper body only.",phase2:"Weeks 9–18: Alfredson eccentric heel drops 3x15 twice daily (Grade A evidence).",phase3:"Weeks 19–26: Walk to jog to run to sprint. VISA-A score 90+ before clearance."},
-  {id:"concussion",label:"Concussion",icon:"🧠",weeks:6,phase1:"Days 1–5: Full cognitive and physical rest. No screens. Symptom check every 2hrs.",phase2:"Weeks 2–4: Sub-symptom aerobic only. Buffalo Treadmill Test protocol.",phase3:"Weeks 5–6: Non-contact sport drills. SCAT5 plus physician sign-off required."},
-  {id:"back",label:"Lower Back Strain",icon:"🔙",weeks:8,phase1:"Weeks 1–2: McKenzie extension protocol. Cat-cow, bird-dog, decompression walks.",phase2:"Weeks 3–5: McGill Big 3, dead bug progression, hip hinge patterning.",phase3:"Weeks 6–8: Deadlift at bodyweight, RDL, core loading progression."},
-  {id:"shin",label:"Shin Splints",icon:"🦵",weeks:6,phase1:"Days 1–10: Rest, ice massage 3x/day, calf stretching.",phase2:"Weeks 2–4: Swim, bike, calf strengthening. Arch support check.",phase3:"Weeks 5–6: Walk-run intervals, gait analysis, 10% volume rule."},
-  {id:"shoulder",label:"Shoulder Dislocation",icon:"💪",weeks:12,phase1:"Weeks 1–4: Sling. No elevation above 90 degrees. Cryotherapy plus NSAIDs.",phase2:"Weeks 5–8: Band ER/IR, scapular stabilization, isometric strengthening.",phase3:"Weeks 9–12: Overhead cleared. Apprehension test negative before contact."},
-  {id:"knee",label:"Knee Pain",icon:"🦵",weeks:10,phase1:"Weeks 1–2: RICE, quad sets, avoid stairs. Inflammation control priority.",phase2:"Weeks 3–6: Bike, step-ups, mini-squats 0 to 45 degrees.",phase3:"Weeks 7–10: Progressive load, sport-specific movement reintroduction."},
-  {id:"wrist",label:"Wrist Fracture",icon:"🖐",weeks:16,phase1:"Weeks 1–6: Cast immobilization. Bone nutrition: calcium, D3, K2.",phase2:"Weeks 7–12: ROM restoration, grip putty, low-resistance wrist curls.",phase3:"Weeks 13–16: Progressive load tolerance, sport grip patterns."},
+  {id:"acl",label:"ACL Tear",icon:"🦵",weeks:36,
+    phase1:"Weeks 1–6: Ice 20 min every hour while swollen, quad sets (10x10 sec holds, 3x/day) the moment you can tolerate them, and heel slides plus wall slides to rebuild ROM toward 0–90°. Straight-leg raises (3x15, all 4 planes) once quad activation returns. Crutches until quad control returns — no weight-bearing wobble.",
+    phase2:"Weeks 7–16: Single-leg press (3x12, add 5% load per session), stationary bike from week 7 (start 10 min, build to 30), leg press to 0–90°, and step-downs off a 4-inch box for eccentric control. Nordic hamstring curls introduced week 10 (2x6) to protect the graft and hamstrings together. No twisting or pivoting yet.",
+    phase3:"Weeks 17–36: Add lateral shuffles and carioca weeks 17–22, single-leg hop-and-stick weeks 23–28, and full cutting/deceleration drills weeks 29–34. A hop test (single-leg, triple, and crossover hop for distance) must clear 85%+ limb symmetry before any live sport-specific drills in week 35–36."},
+  {id:"meniscus",label:"Meniscus Tear",icon:"🦵",weeks:24,
+    phase1:"Weeks 1–4: Crutches with partial weight-bearing as cleared, ice 15–20 min 4x/day, and straight-leg raises (3x15) only — zero flexion past 90° to protect the repair. Ankle pumps hourly while immobile to keep circulation moving.",
+    phase2:"Weeks 5–12: Stationary bike from week 6 (low resistance, seat high to limit flexion), quad sets progressing to mini-squats (0–45°) by week 9, and hamstring curls with a band. Balance work on a wobble cushion week 8+. No twisting, pivoting, or deep squats yet — that's exactly the load pattern that re-tears a meniscus.",
+    phase3:"Weeks 13–24: Reintroduce lateral movement (side shuffles, then carioca) weeks 13–17, cutting and deceleration drills weeks 18–21, and full-speed pivoting only weeks 22–24 once your physician has cleared rotational load on imaging or exam."},
+  {id:"ankle",label:"Ankle Sprain",icon:"🦶",weeks:8,
+    phase1:"Days 1–7: POLICE protocol (Protection, Optimal Loading, Ice 15–20 min every 2–3 hrs, Compression wrap, Elevation above heart). No weight-bearing on Grade 2+ sprains until pain-free walking is possible. Alphabet-tracing with the foot (drawing A–Z in the air) starts as soon as swelling allows.",
+    phase2:"Weeks 2–4: Resistance-band ankle work in all 4 directions (3x15 each), calf raises progressing from double-leg to single-leg, and single-leg balance starting at 10 sec building to 30. Proprioception drills (wobble board, then unstable surface) daily — this is what actually prevents the next sprain.",
+    phase3:"Weeks 5–8: Add lateral bounds and box jumps at 50% intensity week 5–6, plyometric hops (single-leg, multi-directional) week 6–7, and cutting drills week 7–8. Clear a single-leg balance test over 30 seconds eyes-open, then eyes-closed, before full return to sport."},
+  {id:"hamstring",label:"Hamstring Strain",icon:"🦵",weeks:12,
+    phase1:"Weeks 1–2: Active rest with pain-free walking, ice 15 min 3–4x/day. NO passive static stretching — pulling on a freshly strained hamstring increases re-tear risk. Gentle isometric holds (30% effort, 5x20 sec) once acute pain settles.",
+    phase2:"Weeks 3–6: Nordic hamstring curls (Askling protocol) starting at 2x5 and building to 3x8, stationary bike from week 3, and progressive isometrics at longer muscle lengths (the 'L-protocol'). Hip hinge patterning with a dowel to keep the pelvis neutral under load.",
+    phase3:"Weeks 7–12: Build running speed in stages — jog 60% week 7–8, stride 80% week 9–10, sprint 90–100% week 11–12 — with a weekly H-test (isometric hamstring strength test) confirming symmetry before advancing each stage. Skip a stage under fatigue and you're the classic re-tear case."},
+  {id:"rotator",label:"Rotator Cuff",icon:"💪",weeks:20,
+    phase1:"Weeks 1–6: Sling for comfort, pendulum swings (passive, gravity-driven) 3x/day, zero active elevation above 90°. Cryotherapy 20 min 5x/day for pain and swelling. Scapular squeezes (pain-free range) to keep the shoulder blade engaged without loading the cuff.",
+    phase2:"Weeks 7–14: Resistance-band external/internal rotation at 0° abduction (3x15, light band), progressing to 90° abduction by week 11. Scapular stability work (Y-T-W raises, prone) and rhythmic stabilization drills with a partner or wall.",
+    phase3:"Weeks 15–20: Progressive overhead pressing (empty bar, then light load) week 15–17, a structured interval throwing/serving program week 17–19 (starting at 30 ft or half-speed serves, building distance/intensity), and a full ASES shoulder score of 85+ plus pain-free overhead strength testing before contact or competition."},
+  {id:"achilles",label:"Achilles Tendon",icon:"🦶",weeks:26,
+    phase1:"Weeks 1–8: Boot immobilization in slight plantarflexion, progressively adjusted toward neutral per your surgeon/PT's schedule. Upper body and core training only — no calf loading whatsoever. Toe wiggles and ankle pumps within the boot to fight stiffness.",
+    phase2:"Weeks 9–18: Alfredson eccentric heel drops (3x15, both straight-knee and bent-knee variations) twice daily starting week 9 — this is Grade A evidence for tendon remodeling, and the single most important exercise in this phase. Stationary bike from week 10, double-leg calf raises progressing to single-leg by week 15.",
+    phase3:"Weeks 19–26: Walk-to-jog progression week 19–21, jog-to-run week 22–23, run-to-sprint week 24–25. A VISA-A tendon score of 90+ and pain-free single-leg heel raise (25 reps) is required before full clearance to cut, jump, or sprint at game speed in week 26."},
+  {id:"concussion",label:"Concussion",icon:"🧠",weeks:6,
+    phase1:"Days 1–5: Full cognitive and physical rest — no screens, no reading, no bright/loud environments. Symptom check every 2 hours (headache, dizziness, nausea, light/noise sensitivity). Sleep is the primary treatment here; don't fight it.",
+    phase2:"Weeks 2–4: Sub-symptom-threshold aerobic exercise only (walking, then stationary bike), following the Buffalo Concussion Treadmill Test protocol to find your exact heart-rate ceiling before symptoms return. Add light coordination drills (no contact risk) once aerobic tolerance builds.",
+    phase3:"Weeks 5–6: Non-contact sport drills (footwork, stickhandling, shooting form — whatever fits your sport, minus collision risk), then full practice participation without contact, and finally a SCAT5 assessment plus written physician sign-off before any contact or live-game return."},
+  {id:"back",label:"Lower Back Strain",icon:"🔙",weeks:8,
+    phase1:"Weeks 1–2: McKenzie extension protocol (prone press-ups, 10 reps every 2 hrs if it centralizes pain), cat-cow for gentle mobility, bird-dog holds (3x8 sec each side) for pain-free core activation, and short decompression walks 3x/day.",
+    phase2:"Weeks 3–5: McGill Big 3 (modified curl-up, side plank, bird-dog) building from 10-sec to 30-sec holds, dead bug progression for anti-extension core control, and hip hinge patterning with a dowel against the spine to groom the movement before any loaded lifting.",
+    phase3:"Weeks 6–8: Bodyweight deadlift pattern first, then loaded deadlifts starting light and adding 5–10% per session, Romanian deadlifts for hip-hinge strength, and progressive rotational core loading (cable chops, then sport-specific rotation) before contact or competition."},
+  {id:"shin",label:"Shin Splints",icon:"🦵",weeks:6,
+    phase1:"Days 1–10: Relative rest from running/jumping, ice massage along the shin 3x/day (10–15 min), and calf + tibialis anterior stretching 2x/day. Check footwear and running surface — this injury is often a load-management problem, not just a tissue problem.",
+    phase2:"Weeks 2–4: Cross-train with swimming or cycling to maintain fitness without impact, calf raise strengthening (double-leg to single-leg progression), and a gait/footwear check to correct overstriding or worn-out shoes before returning to any running.",
+    phase3:"Weeks 5–6: Walk-run intervals (start 1 min run / 4 min walk, build gradually), following the 10% rule — never increase weekly running volume by more than 10%. Full return to running/sport only once you're pain-free through a complete progression."},
+  {id:"shoulder",label:"Shoulder Dislocation",icon:"💪",weeks:12,
+    phase1:"Weeks 1–4: Sling, no elevation above 90 degrees, no external rotation past neutral (the position most likely to re-dislocate). Cryotherapy plus NSAIDs as directed. Grip and forearm work (stress ball, wrist curls) to keep the rest of the arm active safely.",
+    phase2:"Weeks 5–8: Resistance-band external/internal rotation starting at 0° abduction, scapular stabilization drills (rows, Y-T-W raises), and isometric holds at end-range as tolerated. Avoid the 'high-five' apprehension position (abducted + externally rotated) entirely.",
+    phase3:"Weeks 9–12: Overhead movement cleared progressively — light overhead press, then sport-specific throwing/serving/blocking patterns. A negative apprehension test (no pain or instability feeling in the at-risk position) is required before any contact sport or overhead-sport clearance."},
+  {id:"knee",label:"Knee Pain",icon:"🦵",weeks:10,
+    phase1:"Weeks 1–2: RICE (Rest, Ice 15–20 min 4x/day, Compression, Elevation), quad sets (10x10 sec, 3x/day), and avoiding stairs or deep knee bends. Inflammation control is the priority — pushing through swelling only delays everything after.",
+    phase2:"Weeks 3–6: Stationary bike (low resistance) from week 3, step-ups on a low box, and mini-squats through a pain-free 0–45° range, progressing depth only as tolerated. Add hip strengthening (clamshells, side-lying leg raises) — hip weakness is a common hidden driver of knee pain.",
+    phase3:"Weeks 7–10: Progressive loading with full-depth squats and lunges as tolerated, then sport-specific movement (jumping, cutting, or running depending on your sport) reintroduced at 50%, 75%, then 100% intensity across the final weeks."},
+  {id:"wrist",label:"Wrist Fracture",icon:"🖐",weeks:16,
+    phase1:"Weeks 1–6: Cast or splint immobilization per your orthopedist's schedule. Bone-healing nutrition matters here specifically: calcium 1,000mg, Vitamin D3 2,000 IU, and Vitamin K2 100mcg daily to support the bone-remodeling process. Keep shoulder and elbow moving to avoid stiffness elsewhere.",
+    phase2:"Weeks 7–12: ROM restoration (wrist flexion/extension, radial/ulnar deviation, forearm rotation) once the cast is off and imaging confirms healing. Grip putty or a stress ball for early grip work, progressing to low-resistance wrist curls (light dumbbell or band) by week 10.",
+    phase3:"Weeks 13–16: Progressive load tolerance — weight-bearing through the wrist (planks, push-up progressions) and sport-specific grip patterns (bat grip, racquet grip, stick handling, ball palming depending on your sport) before full contact or competitive return."},
 ];
+// ── SPORT-SPECIFIC RETURN NOTES ─────────────────────────────────────────────
+// Layered on top of whichever injury protocol above applies — same 3-phase
+// structure, but framed around the exact movement patterns each sport
+// actually demands (cutting, throwing, jumping, checking, etc.), so a
+// basketball player and a swimmer with the same injury get different,
+// sport-real guidance for each phase instead of one-size-fits-all text.
+const SPORT_PHASE_NOTES: Record<string, [string, string, string]> = {
+  basketball: [
+    "Basketball demands explosive first steps and repeated jump landings — even now, keep ankle/knee proprioception alive with seated ball-handling and light dribbling if your upper body is uninvolved. No pivoting or lateral cuts until loaded rotation is cleared.",
+    "Reintroduce basketball movement in order: stationary form shooting, then straight-line jogging, then a 45° cut, then a full 90° cut — each only after the last is pain-free for 3 straight sessions. Box jumps stay capped at 50% max height.",
+    "Build to full speed with non-contact shooting drills, then 3-on-0 fast breaks, then controlled 1-on-1, then live 5-on-5. A hop test at 85%+ symmetry should clear before your first live rebound battle.",
+  ],
+  football: [
+    "No bags, sleds, or 1-on-1s yet. Stay sharp with playbook walkthroughs and upper-body/core work that doesn't load the injury.",
+    "Reintroduce football movement with non-contact route running or bag/ladder footwork drills before anything resembling a tackle or block. Build to 3/4-speed cuts before a full-speed cut under fatigue.",
+    "Run position drills at game speed with no opposition, then controlled bag/sled work, then thud-tempo practice, then live contact — each stage needs 48 hours symptom-free before the next.",
+  ],
+  soccer: [
+    "Zero cutting or striking load. Keep first touch and passing sharp with seated or standing ball-mastery drills that don't stress the injury.",
+    "Bring back movement in order: straight-line jogging with the ball, gentle turns, a 50%-pace cut, striking a stationary ball, then a moving ball. 1v1 defending and sliding stay off-limits.",
+    "Finish with small-sided possession (no tackling), then non-contact positional play, then full-contact training, then a match. Clear sprint mechanics and change-of-direction testing before match minutes.",
+  ],
+  baseball: [
+    "For throwing injuries especially, the arm stays fully shut down — no long toss, no bullpen, not even flat-ground throws — while lower-body conditioning and core work continue.",
+    "Return-to-throw is built by distance, not time: start at 30 feet, add 30 only after two pain-free sessions, working toward 120+ feet before a mound session or full-speed swing.",
+    "Sequence: flat-ground throwing progression, then reduced-intensity bullpen, then live batting practice or simulated at-bats, then a rehab game appearance before competitive play.",
+  ],
+  tennis: [
+    "Racquet stays down completely — shadow your service motion and footwork without a ball or racquet to keep the pattern sharp without loading the injury.",
+    "Progress with dead-ball groundstrokes off a tee or wall before live rallying. Hold off entirely on serving — tennis's highest-load motion — until overhead loading is cleared.",
+    "Build serve load gradually: half-speed, then flat, then kick/slice serves, before a full practice set, then a competitive match.",
+  ],
+  track: [
+    "Sprinting and jumping stay off the table completely — pool running or cycling maintains aerobic base without reproducing the pain.",
+    "Return-to-run matters most here: walk, jog at 50%, stride at 70%, sprint at 85%, sprint at 95-100% — two symptom-free sessions before each step up. Technical events (jumps, throws, hurdles) rebuild drill-by-drill alongside.",
+    "Before a meet: complete a full-speed time trial, or for field events a full-approach attempt at competition intensity, with zero pain or compensation.",
+  ],
+  swimming: [
+    "Stay out of stroke work that loads the injury directly — kickboard-only or land-based cardio (if shoulder-involved) keeps aerobic base intact.",
+    "Reintroduce stroke work drill by drill: catch-up drill and single-arm work before full-stroke swimming. Flip turns and starts (both high-load) wait until the final phase.",
+    "Build main-set volume, then race-pace sets, then a full warm-up-to-race simulation including starts and turns before a competitive meet.",
+  ],
+  volleyball: [
+    "No jumping, spiking, or blocking. Approach-step footwork (without the jump) and ball-handling drills keep your feel for the game without loading the injury.",
+    "Reintroduce jumping with a soft-landing progression: two-foot jumps on a soft surface, then approach jumps without contact, then light spiking off a toss. Blocking (reactive, unplanned jumps) waits.",
+    "Finish with controlled hitting drills, then scrimmage under a personal no-block rule, then full live play. Clear a vertical jump and landing-mechanics check before a competitive set.",
+  ],
+  golf: [
+    "The swing loads the spine and lead wrist/shoulder more than people expect — putting and chipping only if cleared, zero full swings.",
+    "Rebuild the swing at 50% speed with a short iron before touching a driver, adding trunk rotation gradually — golf's repetitive rotational load is exactly what re-injures a healing back or shoulder too early.",
+    "Progress full-speed short irons, then mid-irons, then driver, then a full practice round before competitive play — watch for pain the morning after, not just during the swing.",
+  ],
+  mma: [
+    "All sparring, grappling, and striking stop completely. Shadow-drill technique without contact, and condition around the injured area only.",
+    "Reintroduce technique on pads or a bag (controlled, no live resistance) before any live drilling. Live grappling/sparring waits for full clearance given the unpredictable loading.",
+    "Progress through compliant-partner sparring at reduced intensity before live sparring at full intensity — never skip the compliant stage, since that's what catches problems before they become re-injuries.",
+  ],
+  gymnastics: [
+    "Zero tumbling, vaulting, or impact apparatus work. Flexibility and non-loaded strength work maintain conditioning.",
+    "Reintroduce skills on soft landing surfaces (pits, mats) before hard-floor landings, rebuilding tumbling passes one at a time rather than jumping back to your hardest skill.",
+    "Full-difficulty skills return only after a clean landing check on lower-difficulty versions of the same skill family — a coach's eye on landing mechanics matters as much as how you feel.",
+  ],
+  cycling: [
+    "Stationary, low-resistance spinning (lower body) or an upper-body ergometer keeps aerobic base intact without the road's impact or handling demands.",
+    "Return to riding on flat, controlled terrain before technical descents or group rides — build duration before intensity.",
+    "Reintroduce hill climbs, sprints, and technical terrain last, and hold off group racing (unpredictable contact/falls) until solo high-intensity efforts are clean.",
+  ],
+  hockey: [
+    "Skating load and any checking/contact are fully off. Off-ice balance and edge-control drills (or a slide board) maintain the movement pattern.",
+    "Return to skating with straight-line strides before crossovers and tight turns, and stickhandling before any shooting that loads the injury. Contact stays off.",
+    "Progress through non-contact practice, then partial-contact drills, then full-contact practice, then a game — clear a skating-speed and stopping test first.",
+  ],
+  rugby: [
+    "Contact of any kind — tackling, rucking, scrummaging — is fully off. Ball-handling and footwork drills without opposition keep game sense sharp.",
+    "Reintroduce contact strictly: bag/pad work, then live tackling technique at half speed with a compliant partner, then full-speed technique. Never skip straight to full-speed live tackling.",
+    "Finish with non-contact team training, then controlled-contact training, then full-contact training, then a match — most re-injuries happen from skipping the controlled-contact stage.",
+  ],
+  lacrosse: [
+    "Stick skills without contact or full-speed running (wall-ball, cradling) keep your hands sharp — no dodging, checking, or ground-ball scrambles yet.",
+    "Reintroduce running with the stick before dodging moves, and shooting on an empty net before shooting under defensive pressure. Checking (stick or body) waits for the final phase.",
+    "Progress through non-contact drills, then controlled 1-on-1 with checking, then full live scrimmage before a competitive game.",
+  ],
+};
 const SEVERITIES = [
   {id:"mild",label:"Mild",icon:"🟡",desc:"Minor discomfort, partial activity possible",color:"#F59E0B",bg:"#F59E0B20"},
   {id:"moderate",label:"Moderate",icon:"🟠",desc:"Significant pain, limited activity",color:"#F97316",bg:"#F9731620"},
@@ -708,21 +834,151 @@ const TEE_COST_ESTIMATE = 12;
 function billingCyclesPaidByDay(totalDays: number): number {
   return Math.floor((Math.max(1, totalDays) - 1) / 30) + 1;
 }
+// The four payout tiers themselves, indexed 0-3 — same table as the comment
+// above. A given user's ACTUAL tier is whichever is lower of (a) the tier
+// their billing cycles can safely afford (financial ceiling, below) and
+// (b) the tier their Comeback Bucks earned (engagement floor/ceiling, in
+// the COMEBACK BUCKS section right after this one). Index 0 is always
+// reachable just by finishing the program — see comebackBucksInfo().
+const PRO_TIER_AMOUNTS   = [10, 15, 20, 25];
+const ELITE_TIER_AMOUNTS = [20, 30, 40, 50];
+function cyclesSafeTierIndex(totalRecoveryDays: number): 0 | 1 | 2 | 3 {
+  const cycles = billingCyclesPaidByDay(totalRecoveryDays);
+  return cycles <= 2 ? 0 : cycles <= 4 ? 1 : cycles <= 6 ? 2 : 3;
+}
+// Kept for anything that only needs the plan's financial ceiling without the
+// Comeback Bucks engagement layer (e.g. sanity-check tests, Curtis FAQ
+// copy). The real per-user reward the Rewards tab shows comes from
+// comebackBucksInfo() below, which folds this ceiling together with bucks.
 function getRewardTier(plan: "pro" | "elite" | "trial", totalRecoveryDays: number): { giftCardAmount: number; tee: boolean; label: string } | null {
   if (plan === "trial") return null; // a free trial never had a real subscription behind it — no reward
-  const cycles = billingCyclesPaidByDay(totalRecoveryDays);
+  const idx = cyclesSafeTierIndex(totalRecoveryDays);
   if (plan === "pro") {
-    const giftCardAmount = cycles <= 2 ? 10 : cycles <= 4 ? 15 : cycles <= 6 ? 20 : 25;
+    const giftCardAmount = PRO_TIER_AMOUNTS[idx];
     return { giftCardAmount, tee: false, label: `$${giftCardAmount} gift card` };
   }
-  const giftCardAmount = cycles <= 2 ? 20 : cycles <= 4 ? 30 : cycles <= 6 ? 40 : 50;
+  const giftCardAmount = ELITE_TIER_AMOUNTS[idx];
   return { giftCardAmount, tee: true, label: `$${giftCardAmount} gift card + Comeback tee` };
 }
+
+// ── COMEBACK BUCKS ───────────────────────────────────────────────────────────
+// The engagement layer on top of the financial ceiling above. Nowhere does
+// the app say "you must complete every single day perfectly to get a
+// reward" — instead, six everyday actions each earn a set number of
+// Comeback Bucks for that day, they add up across the whole recovery
+// program, and the total (as a % of every bucks that COULD have been
+// earned) decides which of the same four tiers above the user actually
+// qualifies for. Finishing the full program at all always guarantees the
+// bottom tier (index 0) regardless of bucks earned — bucks are what move
+// someone UP from there, not a gate that can leave a finisher with nothing.
+//
+//   Action (per day)                          | Bucks
+//   Journal entry completed                    | 10
+//   Daily task-completion score of 70 or higher | 15
+//   Full day of protocol tasks completed (100%) | 15
+//   Daily streak maintained                     | 5
+//   Wordle solved that day, no failed attempt    | 10
+//   Full supplement schedule completed           | 5
+//   Max possible per day                         | 60
+//
+// Tier math, done to keep this reachable by an "average" user who does some
+// of these things consistently rather than every single one every day:
+//   >= 80% of max possible bucks over the whole program → top tier (index 3)
+//   >= 55%                                              → tier 2
+//   >= 30%                                              → tier 1
+//   anything less (including 0)                          → tier 0 (still a
+//     real reward — completing the program is what guarantees this floor)
+// Because the denominator (days x 60) scales with the program's own length,
+// this holds the same for a 6-week ankle sprain and a 36-week ACL tear —
+// it's always about the % of days you showed up and did real work, not a
+// fixed bucks number that's easier for short programs and brutal for long
+// ones.
+const COMEBACK_BUCKS_PER_DAY = { journal: 10, score: 15, dayComplete: 15, streak: 5, wordle: 10, supplements: 5 };
+const COMEBACK_BUCKS_MAX_PER_DAY = Object.values(COMEBACK_BUCKS_PER_DAY).reduce((a, b) => a + b, 0); // 60
+const BUCKS_TIER_PCT_THRESHOLDS = [0, 0.30, 0.55, 0.80]; // index -> minimum % of max bucks required
+// Bucks earned on one specific day, from whatever's actually saved for that
+// date across completedTasks / diaryEntries / suppChecked / wordleResults.
+// Exported shape doubles as the "what it takes" breakdown shown in the UI.
+function dailyBucksBreakdown(saved: SavedState, dateKey: string, dayNum: number): {
+  journal: boolean; score: boolean; dayComplete: boolean; streak: boolean; wordle: boolean; supplements: boolean; total: number;
+} {
+  const expectedTasks = DAY_PROTOCOLS[dayNum % DAY_PROTOCOLS.length]?.length || 0;
+  const doneArr = saved.completedTasks?.[dateKey];
+  const doneCountDay = doneArr ? doneArr.filter(Boolean).length : 0;
+  const dayScorePct = expectedTasks > 0 ? Math.round((doneCountDay / expectedTasks) * 100) : 0;
+  const journal = !!saved.diaryEntries?.[dateKey];
+  const score = dayScorePct >= 70;
+  const dayComplete = expectedTasks > 0 && doneCountDay === expectedTasks;
+  const suppArr = saved.suppChecked?.[dateKey];
+  const supplements = !!suppArr && suppArr.length > 0 && suppArr.every(Boolean);
+  const wr = saved.wordleResults?.[dateKey];
+  const wordle = !!wr?.solved;
+  // Streak-maintained is approximated as "any recorded activity that day" —
+  // a real limitation, flagged rather than hidden: the app only stores the
+  // CURRENT streak count/alive flag (see SavedState.streak/streakAlive), not
+  // a per-day historical ledger of whether the streak specifically advanced
+  // on that date. Any logged activity that day is a reasonable stand-in
+  // signal of "showed up," but isn't literally the same check as the live
+  // streak logic elsewhere in the app.
+  const streak = journal || dayComplete || doneCountDay > 0 || supplements || !!wr;
+  let total = 0;
+  if (journal) total += COMEBACK_BUCKS_PER_DAY.journal;
+  if (score) total += COMEBACK_BUCKS_PER_DAY.score;
+  if (dayComplete) total += COMEBACK_BUCKS_PER_DAY.dayComplete;
+  if (streak) total += COMEBACK_BUCKS_PER_DAY.streak;
+  if (wordle) total += COMEBACK_BUCKS_PER_DAY.wordle;
+  if (supplements) total += COMEBACK_BUCKS_PER_DAY.supplements;
+  return { journal, score, dayComplete, streak, wordle, supplements, total };
+}
+// Sums bucks across every day of the program (past days that have data,
+// future days count 0 since nothing's logged for them yet) — this is the
+// number the reward tier is ultimately based on.
+function computeComebackBucksTotal(saved: SavedState, totalRecoveryDays: number): { earned: number; possible: number; pct: number } {
+  let earned = 0;
+  const days = Math.max(1, totalRecoveryDays);
+  for (let i = 0; i < days; i++) {
+    const dateKey = offsetDateStr(saved.startDate, i);
+    earned += dailyBucksBreakdown(saved, dateKey, i + 1).total;
+  }
+  const possible = days * COMEBACK_BUCKS_MAX_PER_DAY;
+  return { earned, possible, pct: possible > 0 ? earned / possible : 0 };
+}
+function bucksTierIndexFromPct(pct: number): 0 | 1 | 2 | 3 {
+  let idx: 0 | 1 | 2 | 3 = 0;
+  for (let i = 3; i >= 0; i--) { if (pct >= BUCKS_TIER_PCT_THRESHOLDS[i]) { idx = i as 0 | 1 | 2 | 3; break; } }
+  return idx;
+}
+// The single function the Rewards tab actually renders from — folds the
+// financial ceiling and the bucks-earned engagement layer together and
+// hands back everything needed to explain "what it takes" to the user.
+function comebackBucksInfo(saved: SavedState, totalRecoveryDays: number, plan: "pro" | "elite" | "trial"): {
+  earned: number; possible: number; pct: number;
+  tierIndex: number; amount: number; tee: boolean; label: string;
+  nextTierIndex: number | null; nextAmount: number | null; bucksNeededForNext: number;
+} | null {
+  if (plan === "trial") return null;
+  const { earned, possible, pct } = computeComebackBucksTotal(saved, totalRecoveryDays);
+  const ceilingIdx = cyclesSafeTierIndex(totalRecoveryDays);
+  const bucksIdx = bucksTierIndexFromPct(pct);
+  const tierIndex = Math.min(ceilingIdx, bucksIdx);
+  const amounts = plan === "elite" ? ELITE_TIER_AMOUNTS : PRO_TIER_AMOUNTS;
+  const tee = plan === "elite";
+  const amount = amounts[tierIndex];
+  const nextTierIndex = tierIndex < ceilingIdx ? tierIndex + 1 : null;
+  const nextAmount = nextTierIndex != null ? amounts[nextTierIndex] : null;
+  const bucksNeededForNext = nextTierIndex != null ? Math.max(0, Math.ceil(BUCKS_TIER_PCT_THRESHOLDS[nextTierIndex] * possible) - earned) : 0;
+  return {
+    earned, possible, pct, tierIndex, amount, tee,
+    label: `$${amount} gift card${tee ? " + Comeback tee" : ""}`,
+    nextTierIndex, nextAmount, bucksNeededForNext,
+  };
+}
 const REWARDS_CONTRACT_SECTIONS: { title: string; body: string }[] = [
-  { title: "How it unlocks", body: "Your reward unlocks only once you reach and complete the very last day of your full recovery program — not before, and not partially for finishing part of it." },
+  { title: "How it unlocks", body: "Your reward becomes claimable once you reach the very last day of your full recovery program. You don't have to complete every single day perfectly to get something — but which reward tier you land in depends on the Comeback Bucks you earned along the way (see below)." },
+  { title: "How Comeback Bucks decide your tier", body: "Every day you complete your Journal, hit a daily task score of 70+, finish 100% of that day's tasks, maintain your streak, solve the daily Wordle, and finish your supplement schedule, you earn Comeback Bucks. Add those up across your whole program and the percentage of the total possible you earned decides your tier — finishing the program always guarantees the base tier no matter what, and consistent effort moves you up from there." },
   { title: "Cancellations & refunds", body: "If your subscription is canceled or any payment on it is refunded at any point, you forfeit the reward entirely for that program — no gift card, no apparel — even if you'd already completed some or all of the days." },
   { title: "One reward per completed program", body: "Rewards are tied to a single completed recovery program per subscription. Once you pick a gift card brand and claim your reward, that choice is final." },
-  { title: "Photo & story consent", body: "By checking the box below, you consent to Comeback using your name, photo, and recovery journey (including anything you share in Diary or Squad) in Comeback's marketing and on social media, without additional compensation. This consent applies regardless of your age." },
+  { title: "Photo & story consent", body: "By checking the box below, you consent to Comeback using your name, photo, and recovery journey (including anything you share in Journal or Squad) in Comeback's marketing and on social media, without additional compensation. This consent applies regardless of your age." },
   { title: "Not a substitute for legal advice", body: "This is a plain-language summary of how the rewards program works, not a binding contract drafted or reviewed by a lawyer. Comeback strongly recommends getting a real rewards-program and likeness-consent agreement reviewed by an attorney before real money or merchandise is on the line, especially since anyone of any age can take part." },
 ];
 const MILESTONES = [
@@ -971,7 +1227,7 @@ function Logo({ size = 28 }: { size?: number }) {
           Comeback
         </div>
         <div style={{ fontWeight: 600, fontSize: size * 0.38, color: T.neon, lineHeight: 1, letterSpacing: "1.5px", textTransform: "uppercase", marginTop: 1 }}>
-          Sports Recovery Pro
+          Sports Recovery Trainer
         </div>
       </div>
     </div>
@@ -1195,16 +1451,12 @@ function RecoveryScoreGauge({ score, size = 220 }: { score: number; size?: numbe
   const needleAngle = angleForScore(clamped);
   const band = scoreBand(clamped);
   const tip = polarPoint(cx, cy, r * 0.82, needleAngle);
-  const oneLabel = polarPoint(cx, cy, r + sw * 0.9, -90);
-  const hundredLabel = polarPoint(cx, cy, r + sw * 0.9, 90);
   return (
     <div style={{ width: w, textAlign: "center" }}>
       <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`}>
         <path d={gaugeArcPath(cx, cy, r, -90, -18)} stroke={T.red} strokeWidth={sw} fill="none" strokeLinecap="round" />
         <path d={gaugeArcPath(cx, cy, r, -18, 27)} stroke="#F5A623" strokeWidth={sw} fill="none" strokeLinecap="round" />
         <path d={gaugeArcPath(cx, cy, r, 27, 90)} stroke={T.neon} strokeWidth={sw} fill="none" strokeLinecap="round" />
-        <text x={oneLabel.x} y={oneLabel.y + 4} fontSize={Math.max(8, w * 0.04)} fontWeight={800} fill={T.textMuted} textAnchor="middle">1</text>
-        <text x={hundredLabel.x} y={hundredLabel.y + 4} fontSize={Math.max(8, w * 0.04)} fontWeight={800} fill={T.textMuted} textAnchor="middle">100</text>
         <line x1={cx} y1={cy} x2={tip.x} y2={tip.y} stroke={T.textPrimary} strokeWidth={Math.max(2.5, w * 0.018)} strokeLinecap="round" />
         <circle cx={cx} cy={cy} r={Math.max(5, w * 0.032)} fill={T.textPrimary} stroke={T.bg} strokeWidth={2} />
         <text x={cx} y={cy - r * 0.32} fontSize={w * 0.19} fontWeight={900} fill={band.color} textAnchor="middle">{clamped}</text>
@@ -1380,14 +1632,14 @@ function Welcome({ onNext, onSignIn }: { onNext: () => void; onSignIn: () => voi
             Your comeback<br />starts <span style={{ color: T.neon, textShadow: shadow.neon }}>today.</span>
           </h1>
           <p style={{ fontSize: 15, color: T.textSecondary, lineHeight: 1.6, maxWidth: 300, margin: "0 auto" }}>
-            Science-backed recovery. Personalised nutrition. Choose Pro or go Elite for your own live Recovery Score.
+            Science-backed recovery. Personalized nutrition. Choose Pro or go Elite for your own live Recovery Score.
           </p>
           <p style={{ fontSize: 12, fontWeight: 800, color: T.neon, letterSpacing: "0.3px", lineHeight: 1.5, maxWidth: 300, margin: "10px auto 0" }}>
             The leading app in sports injury recovery — helping athletes get back to their prime, every single day.
           </p>
         </div>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "center", marginBottom: 32 }}>
-          {["🏆 Pro protocols", "📿 Daily faith", "🧪 Personalised macros", "📊 Elite Recovery Score", "📅 Real tracking"].map((f, i) => (
+          {["🏆 Pro protocols", "📿 Daily faith", "🧪 Personalized macros", "📊 Elite Recovery Score", "📅 Real tracking", "🎁 Real Rewards"].map((f, i) => (
             <div key={i} style={{
               fontSize: 11, fontWeight: 700, color: T.neon, background: T.neonL,
               borderRadius: 12, padding: "6px 12px", border: `1px solid ${T.neon}30`,
@@ -1797,6 +2049,180 @@ function AccountPanel({ onClose, authUser }: {
   );
 }
 
+// ── DAILY SPORTS WORDLE ───────────────────────────────────────────────────────
+// A pool of real 5-letter words tied to sports, exercise, or healing/recovery
+// — the whole point being it always feels on-theme instead of a totally
+// random word. One word is picked deterministically per calendar day (same
+// day → same word for every user, exactly like real Wordle, no server needed
+// since it's derived purely from the date).
+const SPORT_WORDLE_WORDS = [
+  "SWEAT","LUNGE","SPLIT","BRACE","SPINE","KNEEL","TREAD","CLEAT","PIVOT","THROW",
+  "CATCH","BLOCK","GUARD","COACH","RALLY","VAULT","PLANK","SQUAT","PRESS","CLEAN",
+  "BENCH","CURLS","RAISE","TWIST","ANKLE","WRIST","ELBOW","CRAWL","CLIMB","SWING",
+  "SPIKE","SERVE","SMASH","DRIVE","IRONS","WEDGE","ROUND","COURT","FIELD","TRACK",
+  "RELAY","AGILE","TONED","BURST","PACER","TRAIN","TIMER","SCORE","GAMES","TEAMS",
+  "MATCH","DIVES","SLIDE","STEAL","GLOVE","TAPED","WRAPS","ICING","HEALS","MENDS",
+  "CRAMP","ACHES","STIFF","LOOSE","FLUID","KNEES","THIGH","NERVE","BONES","TORSO",
+  "CHEST","TRUNK","LUNGS","HEART","PULSE","TIRED","READY","FOCUS","POWER","FORCE",
+  "SPEED","QUICK","STEPS","PACES","LEAPS","JUMPS","ROLLS","TWIRL","TURNS","DODGE",
+  "FEINT","FAKES","DRILL","GOALS","POINT","LEVEL","PHASE","STAGE","START","CLOCK",
+  "WATER","FUELS","CARBS","FIBER","REHAB","RELAX","BREAK","SLEEP","BALMS","CREAM",
+  "GAUZE","NURSE","EXAMS","SCANS","TESTS","CHECK","VISIT","GUIDE","SHOES","SOCKS",
+  "SHIRT","PANTS","STRAP","BANDS","PLATE","RACKS","ROWER","CYCLE","SWIMS","SPINS",
+  "WALKS","SKIPS",
+];
+function wordleWordForDate(dateStr: string): string {
+  const days = Math.floor(new Date(dateStr + "T00:00:00Z").getTime() / 86400000);
+  const idx = ((days % SPORT_WORDLE_WORDS.length) + SPORT_WORDLE_WORDS.length) % SPORT_WORDLE_WORDS.length;
+  return SPORT_WORDLE_WORDS[idx];
+}
+type WordleLetterState = "correct" | "present" | "absent";
+// Standard Wordle scoring with correct duplicate-letter handling: exact
+// position matches are claimed first, then remaining letters are matched
+// against whatever copies of that letter are left in the answer.
+function scoreWordleGuess(guess: string, answer: string): WordleLetterState[] {
+  const result: WordleLetterState[] = Array(5).fill("absent");
+  const answerLetters = answer.split("");
+  const claimed = Array(5).fill(false);
+  for (let i = 0; i < 5; i++) {
+    if (guess[i] === answerLetters[i]) { result[i] = "correct"; claimed[i] = true; }
+  }
+  for (let i = 0; i < 5; i++) {
+    if (result[i] === "correct") continue;
+    const matchIdx = answerLetters.findIndex((c, j) => c === guess[i] && !claimed[j]);
+    if (matchIdx !== -1) { result[i] = "present"; claimed[matchIdx] = true; }
+  }
+  return result;
+}
+const WORDLE_KEYBOARD_ROWS = ["QWERTYUIOP", "ASDFGHJKL", "ZXCVBNM"];
+// Colors per the app's exact spec: green = right letter/right spot, yellow =
+// right letter/wrong spot, RED = letter not in the word at all (a deliberate
+// departure from real Wordle's gray, to match this app's own convention).
+function wordleTileColor(state: WordleLetterState | undefined): { bg: string; border: string; text: string } {
+  if (state === "correct") return { bg: "#16A34A", border: "#16A34A", text: "#FFFFFF" };
+  if (state === "present") return { bg: "#F59E0B", border: "#F59E0B", text: "#1A1200" };
+  if (state === "absent") return { bg: "#DC2626", border: "#DC2626", text: "#FFFFFF" };
+  return { bg: "transparent", border: T.border, text: T.textPrimary };
+}
+function DailyWordle() {
+  const todayKey = todayStr();
+  const answer = useMemo(() => wordleWordForDate(todayKey), [todayKey]);
+  const saved0 = loadState();
+  const existing = saved0?.wordleResults?.[todayKey];
+  const [guesses, setGuesses] = useState<string[]>(existing?.guesses || []);
+  const [current, setCurrent] = useState("");
+  const [shakeError, setShakeError] = useState<string | null>(null);
+  const solved = guesses.some(g => g === answer);
+  const failed = !solved && guesses.length >= 6;
+  const gameOver = solved || failed;
+  const persist = useCallback((nextGuesses: string[]) => {
+    const isSolved = nextGuesses.some(g => g === answer);
+    const isFailed = !isSolved && nextGuesses.length >= 6;
+    const s = loadState();
+    if (s) {
+      s.wordleResults = s.wordleResults || {};
+      s.wordleResults[todayKey] = { guesses: nextGuesses, solved: isSolved, failed: isFailed };
+      saveState(s);
+    }
+  }, [answer, todayKey]);
+  const submitGuess = useCallback(() => {
+    if (gameOver || current.length !== 5) {
+      if (current.length !== 5 && !gameOver) { setShakeError("Needs 5 letters"); setTimeout(() => setShakeError(null), 1200); }
+      return;
+    }
+    setGuesses(prev => {
+      const next = [...prev, current];
+      persist(next);
+      return next;
+    });
+    setCurrent("");
+  }, [current, gameOver, persist]);
+  const pressKey = useCallback((key: string) => {
+    if (gameOver) return;
+    if (key === "ENTER") { submitGuess(); return; }
+    if (key === "BACK") { setCurrent(c => c.slice(0, -1)); return; }
+    setCurrent(c => (c.length < 5 ? c + key : c));
+  }, [gameOver, submitGuess]);
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (gameOver) return;
+      if (e.key === "Enter") { pressKey("ENTER"); return; }
+      if (e.key === "Backspace") { pressKey("BACK"); return; }
+      const k = e.key.toUpperCase();
+      if (/^[A-Z]$/.test(k)) pressKey(k);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [pressKey, gameOver]);
+  const keyStatus: Record<string, WordleLetterState> = {};
+  guesses.forEach(g => {
+    const scored = scoreWordleGuess(g, answer);
+    g.split("").forEach((ch, i) => {
+      const rank = { correct: 3, present: 2, absent: 1 } as const;
+      if (!keyStatus[ch] || rank[scored[i]] > rank[keyStatus[ch]]) keyStatus[ch] = scored[i];
+    });
+  });
+  const rows = [...guesses, ...(gameOver ? [] : [current]), ...Array(Math.max(0, 6 - guesses.length - (gameOver ? 0 : 1))).fill("")];
+  return (
+    <Card style={{ marginBottom: 14, background: "linear-gradient(135deg,#0D0D1A,#0A0A14)", border: `1px solid ${T.indigo}30` }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+        <TagPill color={T.indigo} bg={T.indigoL}>🧩 Daily Recovery Wordle</TagPill>
+        {solved && <TagPill color={T.neon} bg={T.neonL}>Solved in {guesses.length}/6 🎉</TagPill>}
+        {failed && <TagPill color={T.red} bg="rgba(220,38,38,0.12)">Word was {answer}</TagPill>}
+      </div>
+      <p style={{ fontSize: 11, color: T.textSecondary, marginBottom: 10, lineHeight: 1.4 }}>A new 5-letter sports & recovery word every day. Solve it without running out of guesses to earn today's Comeback Bucks for it.</p>
+      <div style={{ display: "flex", flexDirection: "column", gap: 5, marginBottom: 12 }}>
+        {rows.slice(0, 6).map((rowGuess, r) => {
+          const isPending = !gameOver && r === guesses.length;
+          const scored = rowGuess.length === 5 && !isPending ? scoreWordleGuess(rowGuess, answer) : null;
+          return (
+            <div key={r} style={{ display: "flex", gap: 5, justifyContent: "center" }}>
+              {Array.from({ length: 5 }).map((_, c) => {
+                const letter = rowGuess[c] || "";
+                const colors = scored ? wordleTileColor(scored[c]) : wordleTileColor(undefined);
+                return (
+                  <div key={c} style={{
+                    width: 34, height: 34, display: "flex", alignItems: "center", justifyContent: "center",
+                    border: `2px solid ${letter && !scored ? T.textMuted : colors.border}`,
+                    background: colors.bg, color: colors.text, borderRadius: 6,
+                    fontWeight: 800, fontSize: 16, textTransform: "uppercase",
+                  }}>{letter}</div>
+                );
+              })}
+            </div>
+          );
+        })}
+      </div>
+      {shakeError && <div style={{ textAlign: "center", fontSize: 11, color: T.red, marginBottom: 8 }}>{shakeError}</div>}
+      {!gameOver && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+          {WORDLE_KEYBOARD_ROWS.map((row, ri) => (
+            <div key={ri} style={{ display: "flex", gap: 4, justifyContent: "center" }}>
+              {ri === 2 && (
+                <button onClick={() => pressKey("ENTER")} style={{ fontSize: 9, fontWeight: 800, padding: "0 8px", height: 32, borderRadius: 6, border: "none", background: T.neon, color: T.bg, cursor: "pointer" }}>ENTER</button>
+              )}
+              {row.split("").map(ch => {
+                const st = keyStatus[ch];
+                const colors = wordleTileColor(st);
+                return (
+                  <button key={ch} onClick={() => pressKey(ch)} style={{
+                    width: 24, height: 32, borderRadius: 6, border: st ? "none" : `1px solid ${T.border}`,
+                    background: st ? colors.bg : T.surface, color: st ? colors.text : T.textPrimary,
+                    fontWeight: 700, fontSize: 11, cursor: "pointer",
+                  }}>{ch}</button>
+                );
+              })}
+              {ri === 2 && (
+                <button onClick={() => pressKey("BACK")} style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 32, height: 32, borderRadius: 6, border: "none", background: T.surface, color: T.textPrimary, cursor: "pointer" }}><Delete size={13} /></button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </Card>
+  );
+}
+
 // ── APP DASHBOARD ─────────────────────────────────────────────────────────────
 function AppDashboard({ saved, onReset, onUpgrade, onOpenAccount, authUser }: {
   saved: SavedState; onReset: () => void; onUpgrade: (code: string) => void;
@@ -2015,9 +2441,9 @@ function AppDashboard({ saved, onReset, onUpgrade, onOpenAccount, authUser }: {
         <div style={{ flex: 1, overflowY: "auto", background: T.bg, padding: "20px 18px 100px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
             <Gift size={22} color={T.neon} />
-            <h1 style={{ fontWeight: 900, fontSize: 22, color: T.textPrimary, margin: 0 }}>Rewards</h1>
+            <h1 style={{ fontWeight: 900, fontSize: 22, color: T.textPrimary, margin: 0 }}>Real Rewards</h1>
           </div>
-          <p style={{ fontSize: 13, color: T.textSecondary, marginBottom: 16 }}>Finish your full recovery program and claim a real reward — a gift card, and a Comeback tee on Elite.</p>
+          <p style={{ fontSize: 13, color: T.textSecondary, marginBottom: 16 }}>Not points that expire into nothing — a real gift card, and a real Comeback tee on Elite, earned with Comeback Bucks along the way.</p>
           {saved.plan === "trial" ? (
             <Card style={{ textAlign: "center", padding: "24px 16px" }}>
               <p style={{ fontSize: 13, color: T.textSecondary, marginBottom: 16, lineHeight: 1.6 }}>Rewards are for Pro and Elite subscribers — your free trial doesn't have a paid plan behind it yet, so there's nothing to earn a reward against. Upgrade to start earning yours.</p>
@@ -2027,17 +2453,58 @@ function AppDashboard({ saved, onReset, onUpgrade, onOpenAccount, authUser }: {
               </div>
             </Card>
           ) : (() => {
-            const tier = getRewardTier(saved.plan, totalRecoveryDays);
-            if (!tier) return null;
+            const bucksInfo = comebackBucksInfo(saved, totalRecoveryDays, saved.plan);
+            if (!bucksInfo) return null;
+            const tier = { label: bucksInfo.label, giftCardAmount: bucksInfo.amount, tee: bucksInfo.tee };
+            const todayBucks = dailyBucksBreakdown(saved, todayKey, dayNum);
+            const BUCKS_CHECKLIST: { key: keyof typeof todayBucks; icon: string; label: string; pts: number }[] = [
+              { key: "journal", icon: "📓", label: "Complete today's Journal", pts: COMEBACK_BUCKS_PER_DAY.journal },
+              { key: "score", icon: "📊", label: "Hit a daily score of 70+", pts: COMEBACK_BUCKS_PER_DAY.score },
+              { key: "dayComplete", icon: "✅", label: "Finish 100% of today's tasks", pts: COMEBACK_BUCKS_PER_DAY.dayComplete },
+              { key: "streak", icon: "🔥", label: "Maintain your daily streak", pts: COMEBACK_BUCKS_PER_DAY.streak },
+              { key: "wordle", icon: "🧩", label: "Solve today's Wordle (no fails)", pts: COMEBACK_BUCKS_PER_DAY.wordle },
+              { key: "supplements", icon: "💊", label: "Complete your supplement schedule", pts: COMEBACK_BUCKS_PER_DAY.supplements },
+            ];
             return (
               <>
                 <NeonCard style={{ marginBottom: 16 }}>
-                  <div style={{ fontWeight: 800, fontSize: 10, color: T.neon, marginBottom: 8, letterSpacing: "1px" }}>YOUR REWARD</div>
+                  <div style={{ fontWeight: 800, fontSize: 10, color: T.neon, marginBottom: 8, letterSpacing: "1px" }}>YOUR CURRENT REWARD</div>
                   <div style={{ fontWeight: 900, fontSize: 22, color: T.textPrimary, marginBottom: 6 }}>{tier.label}</div>
                   <div style={{ fontSize: 12, color: T.textSecondary, lineHeight: 1.5 }}>
-                    Based on your {injury?.label.toLowerCase() || "injury"} recovery running {totalRecoveryDays} days on the {saved.plan === "elite" ? "Elite" : "Pro"} plan.
+                    Based on your {injury?.label.toLowerCase() || "injury"} recovery running {totalRecoveryDays} days on the {saved.plan === "elite" ? "Elite" : "Pro"} plan, plus the Comeback Bucks you've earned so far.
                   </div>
                 </NeonCard>
+                <Card style={{ marginBottom: 16 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: T.textPrimary }}>💰 Comeback Bucks earned</span>
+                    <span style={{ fontSize: 12, fontWeight: 800, color: T.neon }}>{bucksInfo.earned} / {bucksInfo.possible}</span>
+                  </div>
+                  <div style={{ height: 8, borderRadius: 4, background: T.border, overflow: "hidden" }}>
+                    <div style={{ height: "100%", width: `${Math.min(100, Math.round(bucksInfo.pct * 100))}%`, background: "#F59E0B", boxShadow: "0 0 8px #F59E0B80", borderRadius: 4 }} />
+                  </div>
+                  <div style={{ fontSize: 11, color: T.textMuted, marginTop: 8 }}>
+                    {bucksInfo.nextAmount != null
+                      ? <>Earn <strong style={{ color: T.textPrimary }}>{bucksInfo.bucksNeededForNext} more Comeback Bucks</strong> to move up to a ${bucksInfo.nextAmount} reward{bucksInfo.tee ? " (tee already included)" : ""}.</>
+                      : "You've reached the top reward tier available for your plan and program length — nice work."}
+                  </div>
+                </Card>
+                <Card style={{ marginBottom: 16 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: T.textPrimary, marginBottom: 10 }}>Today's ways to earn Comeback Bucks</div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    {BUCKS_CHECKLIST.map(item => {
+                      const done = !!todayBucks[item.key];
+                      return (
+                        <div key={item.key as string} style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                          <div style={{ width: 22, height: 22, borderRadius: 11, background: done ? T.neon : T.border, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                            {done && <Check size={12} color={T.bg} strokeWidth={3} />}
+                          </div>
+                          <span style={{ fontSize: 12, color: done ? T.textPrimary : T.textSecondary, flex: 1 }}>{item.icon} {item.label}</span>
+                          <span style={{ fontSize: 11, fontWeight: 800, color: done ? T.neon : T.textMuted }}>+{item.pts}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </Card>
                 <Card style={{ marginBottom: 16 }}>
                   <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
                     <span style={{ fontSize: 12, fontWeight: 700, color: T.textPrimary }}>Program progress</span>
@@ -2047,21 +2514,32 @@ function AppDashboard({ saved, onReset, onUpgrade, onOpenAccount, authUser }: {
                     <div style={{ height: "100%", width: `${pct}%`, background: T.neon, boxShadow: shadow.neon, borderRadius: 4 }} />
                   </div>
                   {!recoveryComplete && (
-                    <div style={{ fontSize: 11, color: T.textMuted, marginTop: 8 }}>{totalRecoveryDays - dayNum} day{totalRecoveryDays - dayNum === 1 ? "" : "s"} to go until your reward unlocks.</div>
+                    <div style={{ fontSize: 11, color: T.textMuted, marginTop: 8 }}>{totalRecoveryDays - dayNum} day{totalRecoveryDays - dayNum === 1 ? "" : "s"} to go until your reward becomes claimable.</div>
                   )}
                 </Card>
                 {!recoveryComplete ? (
                   <div style={{ display: "flex", gap: 10, alignItems: "flex-start", background: T.surface, border: `1px solid ${T.border}`, borderRadius: 14, padding: 14 }}>
                     <Lock size={16} color={T.textMuted} style={{ flexShrink: 0, marginTop: 2 }} />
-                    <p style={{ fontSize: 12, color: T.textSecondary, margin: 0, lineHeight: 1.5 }}>Your reward stays locked until you complete the very last day of your program. Stay subscribed the whole way through — cancelling or getting refunded forfeits it.</p>
+                    <p style={{ fontSize: 12, color: T.textSecondary, margin: 0, lineHeight: 1.5 }}>Your reward becomes claimable once you reach the very last day of your program — keep earning Comeback Bucks along the way to lock in a higher tier. Stay subscribed the whole way through — cancelling or getting refunded forfeits it.</p>
                   </div>
                 ) : rewardClaim ? (
                   <NeonCard>
                     <div style={{ fontWeight: 900, fontSize: 16, color: T.neon, marginBottom: 6 }}>✓ Reward claimed</div>
-                    <p style={{ fontSize: 13, color: T.textSecondary, lineHeight: 1.6, marginBottom: 8 }}>
+                    <p style={{ fontSize: 13, color: T.textSecondary, lineHeight: 1.6, marginBottom: 12 }}>
                       {rewardClaim.brand} ${rewardClaim.giftCardAmount} gift card{rewardClaim.tee ? " + Comeback tee" : ""} — claimed {new Date(rewardClaim.claimedAt).toLocaleDateString()}.
                     </p>
-                    <p style={{ fontSize: 11, color: T.textMuted, lineHeight: 1.6 }}>The Comeback team fulfills claims by email — reach out to {CURTIS_CONTACT.email} if you don't hear back within a few days.</p>
+                    <div style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 12, padding: "12px 14px", marginBottom: 10 }}>
+                      <div style={{ fontWeight: 800, fontSize: 12, color: T.textPrimary, marginBottom: 6 }}>📩 One last step — email us to get it sent out</div>
+                      <p style={{ fontSize: 12, color: T.textSecondary, lineHeight: 1.6, margin: 0, marginBottom: 8 }}>
+                        Send an email to <strong style={{ color: T.neon }}>{CURTIS_CONTACT.email}</strong> with:
+                      </p>
+                      <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12, color: T.textSecondary, lineHeight: 1.7 }}>
+                        <li>A photo showing you've completed your recovery (proof of completion)</li>
+                        <li>A short testimony of your recovery journey — what it was like, what you'd tell someone starting where you started</li>
+                        <li>A photo of yourself, for social media acknowledgment of your comeback (this uses the same consent you already agreed to)</li>
+                      </ul>
+                    </div>
+                    <p style={{ fontSize: 11, color: T.textMuted, lineHeight: 1.6 }}>The Comeback team fulfills claims by email once that's received — reach out again to {CURTIS_CONTACT.email} if you don't hear back within a few days.</p>
                   </NeonCard>
                 ) : !rewardsConsent ? (
                   <NeonCard>
@@ -2166,7 +2644,7 @@ function AppDashboard({ saved, onReset, onUpgrade, onOpenAccount, authUser }: {
               <span style={{ fontSize: 10, color: T.textMuted }}>Day {(injury?.weeks || 36) * 7}</span>
             </div>
           </Card>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 16 }}>
+          <div className="cb-stat-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 16 }}>
             <Card style={{ textAlign: "center", padding: "12px 8px" }}>
               <div style={{ display: "flex", justifyContent: "center", marginBottom: 4 }}><StreakFire streak={saved.streak} alive={saved.streakAlive} /></div>
               <div style={{ fontSize: 10, color: T.textMuted, fontWeight: 600 }}>Streak</div>
@@ -2262,6 +2740,7 @@ function AppDashboard({ saved, onReset, onUpgrade, onOpenAccount, authUser }: {
               <p style={{ fontSize: 13, fontStyle: "italic", color: T.textPrimary, lineHeight: 1.65, marginTop: 8, fontFamily: "Georgia,serif" }}>{dailyContent.quote}</p>
               <p style={{ fontSize: 10, fontWeight: 700, color: T.neon, marginTop: 6 }}>— {dailyContent.text}</p>
             </Card>
+            <DailyWordle />
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
               <h2 style={{ fontWeight: 900, fontSize: 18, color: T.textPrimary }}>Today's Protocol</h2>
               <span style={{ fontSize: 10, fontWeight: 700, color: allDone ? T.neon : T.textMuted, background: T.surface, border: `1px solid ${allDone ? T.neon : T.border}`, borderRadius: 8, padding: "4px 8px", boxShadow: allDone ? shadow.neon : "none" }}>{doneCount}/{tasks.length} done</span>
@@ -2292,9 +2771,9 @@ function AppDashboard({ saved, onReset, onUpgrade, onOpenAccount, authUser }: {
           <h1 style={{ fontWeight: 900, fontSize: 22, color: T.textPrimary, marginBottom: 4 }}>{injury?.label || "Recovery Protocol"}</h1>
           <p style={{ fontSize: 13, color: T.textSecondary, marginBottom: 20 }}>{injury?.weeks || 12}-week protocol · Week {weekNum} · Phase {phase}</p>
           {[
-            { phase: "Phase 1", title: "Protection & Healing", desc: injury?.phase1, color: T.neon, bg: T.neonL, active: phase === 1 },
-            { phase: "Phase 2", title: "Strength & Mobility",  desc: injury?.phase2, color: T.teal,  bg: T.tealL, active: phase === 2 },
-            { phase: "Phase 3", title: "Return to Sport",      desc: injury?.phase3, color: T.indigo, bg: T.indigoL, active: phase === 3 },
+            { phase: "Phase 1", title: "Protection & Healing", desc: injury?.phase1, sportNote: saved.sportId ? SPORT_PHASE_NOTES[saved.sportId]?.[0] : undefined, color: T.neon, bg: T.neonL, active: phase === 1 },
+            { phase: "Phase 2", title: "Strength & Mobility",  desc: injury?.phase2, sportNote: saved.sportId ? SPORT_PHASE_NOTES[saved.sportId]?.[1] : undefined, color: T.teal,  bg: T.tealL, active: phase === 2 },
+            { phase: "Phase 3", title: "Return to Sport",      desc: injury?.phase3, sportNote: saved.sportId ? SPORT_PHASE_NOTES[saved.sportId]?.[2] : undefined, color: T.indigo, bg: T.indigoL, active: phase === 3 },
           ].map((p, i) => (
             <div key={i} style={{ display: "flex", gap: 14, marginBottom: 20, opacity: p.active ? 1 : 0.45 }}>
               <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
@@ -2308,6 +2787,14 @@ function AppDashboard({ saved, onReset, onUpgrade, onOpenAccount, authUser }: {
                 </div>
                 <h3 style={{ fontWeight: 800, fontSize: 15, color: T.textPrimary, margin: "0 0 8px" }}>{p.title}</h3>
                 <Card style={{ fontSize: 13, color: T.textSecondary, lineHeight: 1.6 }}>{p.desc}</Card>
+                {p.sportNote && (
+                  <Card style={{ fontSize: 12, color: T.textPrimary, lineHeight: 1.6, marginTop: 8, background: p.bg, border: `1.5px solid ${p.color}40` }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6, fontWeight: 800, fontSize: 11, color: p.color, textTransform: "uppercase", letterSpacing: 0.3 }}>
+                      <span style={{ fontSize: 14 }}>{sport?.icon}</span> {sport?.label}-Specific Guidance
+                    </div>
+                    {p.sportNote}
+                  </Card>
+                )}
               </div>
             </div>
           ))}
@@ -2342,7 +2829,7 @@ function AppDashboard({ saved, onReset, onUpgrade, onOpenAccount, authUser }: {
           ) : macros ? (
             <Card style={{ marginBottom: 16, background: T.neonL, border: `1.5px solid ${T.neon}40` }}>
               <div style={{ fontWeight: 800, fontSize: 13, color: T.neon, marginBottom: 12 }}>📊 Your Daily Targets</div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
+              <div className="cb-macro-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
                 {[
                   { label: "Calories", val: `${macros.calories}`, unit: "kcal", color: T.orange },
                   { label: "Protein",  val: `${macros.protein}g`, unit: "priority", color: T.neon },
@@ -2434,8 +2921,8 @@ function AppDashboard({ saved, onReset, onUpgrade, onOpenAccount, authUser }: {
       case "diary": return (
         <div style={{ flex: 1, overflowY: "auto", background: T.bg, padding: "20px 18px 100px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-            <BookHeart size={22} color={T.neon} />
-            <h1 style={{ fontWeight: 900, fontSize: 22, color: T.textPrimary, margin: 0 }}>Diary</h1>
+            <BookOpen size={22} color={T.neon} />
+            <h1 style={{ fontWeight: 900, fontSize: 22, color: T.textPrimary, margin: 0 }}>Journal</h1>
           </div>
           <p style={{ fontSize: 13, color: T.textSecondary, marginBottom: 16 }}>A personal space to reflect — your own words, saved day by day. Nothing here is shared to Squad.</p>
           {!eliteActive ? (
@@ -2450,7 +2937,7 @@ function AppDashboard({ saved, onReset, onUpgrade, onOpenAccount, authUser }: {
                   style={{ width: "100%", minHeight: 110, borderRadius: 12, border: `1.5px solid ${T.border}`, background: T.card, color: T.textPrimary, fontSize: 13, lineHeight: 1.6, padding: 12, outline: "none", resize: "vertical", fontFamily: "inherit", boxSizing: "border-box", marginBottom: 10 }} />
                 {diaryDraftPhoto && (
                   <div style={{ position: "relative", display: "inline-block", marginBottom: 10 }}>
-                    <img src={diaryDraftPhoto} alt="Diary attachment" style={{ width: 90, height: 90, objectFit: "cover", borderRadius: 12, border: `1px solid ${T.border}` }} />
+                    <img src={diaryDraftPhoto} alt="Journal attachment" style={{ width: 90, height: 90, objectFit: "cover", borderRadius: 12, border: `1px solid ${T.border}` }} />
                     <button onClick={() => setDiaryDraftPhoto(null)} style={{ position: "absolute", top: -6, right: -6, width: 22, height: 22, borderRadius: 11, background: T.red, border: `2px solid ${T.bg}`, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
                       <X size={12} color="white" />
                     </button>
@@ -2513,14 +3000,14 @@ function AppDashboard({ saved, onReset, onUpgrade, onOpenAccount, authUser }: {
             <>
               <h1 style={{ fontWeight:900, fontSize:22, color:T.textPrimary, marginBottom:4 }}>Your Recovery Score</h1>
               <p style={{ fontSize:13, color:T.textSecondary, marginBottom:16 }}>
-                Live and always moving — built from your real task completion, how well your calories track your target, and your daily diary check-ins.
+                Live and always moving — built from your real task completion, how well your calories track your target, and your daily Journal check-ins.
               </p>
               <div style={{ display: "flex", justifyContent: "center", marginBottom: 16 }}>
                 <div style={{ background: T.surface, borderRadius: 24, padding: "24px 20px", border: `2px solid ${T.neon}50`, boxShadow: shadow.neon, display: "inline-flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
                   <RecoveryScoreGauge score={recoveryScore.score} size={200} />
                 </div>
               </div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 16 }}>
+              <div className="cb-stat-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 16 }}>
                 <Card style={{ textAlign: "center", padding: "14px 8px" }}>
                   <div style={{ fontWeight: 900, fontSize: 20, color: scoreBand(recoveryScore.taskScore).color }}>{recoveryScore.taskScore}</div>
                   <div style={{ fontSize: 9, color: T.textMuted, fontWeight: 700, marginTop: 2 }}>TASKS</div>
@@ -2531,16 +3018,16 @@ function AppDashboard({ saved, onReset, onUpgrade, onOpenAccount, authUser }: {
                 </Card>
                 <Card style={{ textAlign: "center", padding: "14px 8px" }}>
                   <div style={{ fontWeight: 900, fontSize: 20, color: recoveryScore.diaryScore != null ? scoreBand(recoveryScore.diaryScore).color : T.textMuted }}>{recoveryScore.diaryScore ?? "—"}</div>
-                  <div style={{ fontSize: 9, color: T.textMuted, fontWeight: 700, marginTop: 2 }}>DIARY</div>
+                  <div style={{ fontSize: 9, color: T.textMuted, fontWeight: 700, marginTop: 2 }}>JOURNAL</div>
                 </Card>
               </div>
               {(recoveryScore.calorieScore == null || recoveryScore.diaryScore == null) && (
                 <div style={{ fontSize: 11, color: T.textMuted, marginBottom: 16, textAlign: "center" }}>
                   {recoveryScore.calorieScore == null && recoveryScore.diaryScore == null
-                    ? "Log a meal below and write your first Diary entry to activate the rest of your score."
+                    ? "Log a meal below and write your first Journal entry to activate the rest of your score."
                     : recoveryScore.calorieScore == null
                     ? "Log a few meals below (and set up your Body Profile in Protocol) to activate the calorie half of your score."
-                    : "Write your first Diary entry to activate that part of your score."}
+                    : "Write your first Journal entry to activate that part of your score."}
                 </div>
               )}
               <NeonCard style={{ marginBottom: 20 }}>
@@ -2590,21 +3077,21 @@ function AppDashboard({ saved, onReset, onUpgrade, onOpenAccount, authUser }: {
   return (
     <div style={{ height: "100%", display: "flex", flexDirection: "column", background: T.bg }}>
       <div style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column", minHeight: 0 }}>{renderTab()}</div>
-      {/* 7 sections total — 3 on each side of the center Today button, per the
-          user's "3 sections on both sides of the middle one" spec. Rewards
-          sits next to Home (left side); Diary sits next to Squad (right
-          side). justifyContent: space-between + each NavBtn's flex:1 (see
+      {/* 7 sections total — 3 on each side of the center Today button. Left
+          side: Protocol, Home, Journal (Journal sits right next to Home).
+          Right side: Squad, Rewards, Score (Rewards sits right before
+          Score). justifyContent: space-between + each NavBtn's flex:1 (see
           NavBtn above) is what keeps 7 items from overlapping at mobile
           widths — they divide the bar evenly instead of stacking up. */}
       <div style={{ flexShrink: 0, background: T.surface, borderTop: `1px solid ${T.border}`, paddingBottom: "env(safe-area-inset-bottom,12px)", paddingTop: 8, paddingLeft: 2, paddingRight: 2, display: "flex", justifyContent: "space-between", alignItems: "flex-end", zIndex: 50 }}>
-        <NavBtn icon={<Gift size={17} />}     label="Rewards"  active={tab === "rewards"}  onClick={() => setTab("rewards")} />
+        <NavBtn icon={<span style={{ fontSize: 17, lineHeight: 1 }}>💪</span>} label="Protocol" active={tab === "protocol"} onClick={() => setTab("protocol")} />
         <NavBtn icon={<Home size={17} />}     label="Home"     active={tab === "home"}     onClick={() => setTab("home")} />
-        <NavBtn icon={<BookOpen size={17} />} label="Protocol" active={tab === "protocol"} onClick={() => setTab("protocol")} />
+        <NavBtn icon={<BookOpen size={17} />} label="Journal"  active={tab === "diary"}    onClick={() => setTab("diary")} />
         <button onClick={() => setTab("today")} style={{ width: 52, height: 52, borderRadius: 26, background: tab === "today" ? T.neon : T.card, display: "flex", alignItems: "center", justifyContent: "center", border: `2px solid ${tab === "today" ? T.neon : T.border}`, boxShadow: tab === "today" ? shadow.neon : shadow.sm, cursor: "pointer", marginBottom: 3, flexShrink: 0 }}>
           <Dumbbell size={20} color={tab === "today" ? T.bg : T.textSecondary} />
         </button>
         <NavBtn icon={<Users size={17} />}    label="Squad"    active={tab === "squad"}    onClick={() => setTab("squad")} />
-        <NavBtn icon={<BookHeart size={17} />} label="Diary"   active={tab === "diary"}    onClick={() => setTab("diary")} />
+        <NavBtn icon={<Gift size={17} />}     label="Rewards"  active={tab === "rewards"}  onClick={() => setTab("rewards")} />
         <NavBtn icon={<Gauge size={17} />}    label="Score"    active={tab === "score"}    onClick={() => setTab("score")} />
       </div>
     </div>
@@ -2617,16 +3104,66 @@ function AppDashboard({ saved, onReset, onUpgrade, onOpenAccount, authUser }: {
 // X / how does this work / what's my plan" questions instantly and offline.
 const CURTIS_CONTACT = { phone: "929-432-8785", email: "comebacktrainer@gmail.com" };
 const CURTIS_FAQ: { keywords: string[]; answer: string }[] = [
-  { keywords: ["score", "gauge", "credit", "1-100", "number"], answer: "Your Recovery Score (1-100) lives on the Score tab. It updates live from your daily protocol completion, your nutrition logging, and — once it's built — your Diary check-ins. It reflects your whole recovery timeline, not just today." },
-  { keywords: ["plan", "subscription", "price", "cost", "pro", "elite", "upgrade", "cancel", "billing", "stripe", "refund"], answer: "Comeback has two plans: Pro ($9.99/mo) and Elite ($28.99/mo — adds your live Recovery Score, Diary, and Rewards). See full plan details any time from the Score tab. You can manage or cancel your subscription through Stripe whenever you'd like." },
+  { keywords: ["score", "gauge", "credit", "1-100", "number"], answer: "Your Recovery Score (1-100) lives on the Score tab. It updates live from your daily protocol completion, your nutrition logging, and your Journal check-ins. It reflects your whole recovery timeline, not just today." },
+  { keywords: ["plan", "subscription", "price", "cost", "pro", "elite", "upgrade", "cancel", "billing", "stripe", "refund"], answer: "Comeback has two plans: Pro ($9.99/mo) and Elite ($28.99/mo — adds your live Recovery Score, Journal, and Rewards). See full plan details any time from the Score tab. You can manage or cancel your subscription through Stripe whenever you'd like." },
   { keywords: ["protocol", "today", "workout", "exercise", "task", "phase"], answer: "Your daily tasks live under the Today button (the big one in the middle of the bottom nav). The Protocol tab shows your whole recovery roadmap, phase by phase." },
   { keywords: ["squad", "post", "community", "team", "reply", "like"], answer: "Squad is your community feed with athletes recovering from the same sport and injury as you — post, like, and reply right from the Squad tab." },
-  { keywords: ["diary", "journal", "feelings", "mood", "emotions", "goals"], answer: "Diary is your personal recovery journal — a new reflection prompt every day, saved day by day so nothing gets overwritten, with the option to attach a photo. Completing it also helps your Recovery Score." },
+  { keywords: ["diary", "journal", "feelings", "mood", "emotions", "goals"], answer: "Journal is your personal recovery journal — a new reflection prompt every day, saved day by day so nothing gets overwritten, with the option to attach a photo. Completing it also helps your Recovery Score and earns you Comeback Bucks." },
   { keywords: ["reward", "gift card", "tee", "shirt", "prize", "amazon"], answer: "Rewards unlock once you complete your full recovery program without cancelling or getting refunded. Pro members get a $10-$25 gift card; Elite members get a $20-$50 gift card plus a Comeback tee — the exact amount scales with how many months your recovery ran. Full terms are on the Rewards tab." },
   { keywords: ["streak", "fire"], answer: "Your streak grows by one every day you actually open Comeback exactly one day after your last visit. Miss a day and it resets — it only counts real, daily use." },
   { keywords: ["sign in", "login", "log in", "account", "sync", "password", "device", "lost", "delete", "app store", "code"], answer: "Comeback isn't in an app store, so your progress never lives on just one device. Tap the account icon on the Home tab and sign in with your email — we'll send a secure one-time sign-in link, no password to remember, and everything syncs right back." },
   { keywords: ["doctor", "medical", "injury", "safe", "hurt", "physician"], answer: "Comeback is not a doctor and isn't a substitute for medical care — always get examined and cleared by a licensed physician before and during your recovery. Think of Comeback as the structured, science-backed system that works alongside your medical care, not instead of it." },
   { keywords: ["contact", "support", "human", "person", "phone", "email", "reach"], answer: `You can reach the Comeback team directly at ${CURTIS_CONTACT.phone} or ${CURTIS_CONTACT.email}.` },
+];
+// Small talk Curtis handles like a friend would, checked only when nothing
+// in CURTIS_FAQ matched (a real question about the app always wins — e.g.
+// "hey, how does scoring work" still gets the Score answer, not a greeting).
+// Each entry has a few varied phrasings so Curtis doesn't sound like a
+// scripted bot repeating the exact same line every time.
+const CURTIS_SMALLTALK: { test: RegExp; replies: string[] }[] = [
+  { test: /\b(hi|hey|hello|hiya|yo|sup|howdy)\b/, replies: [
+    "Hey! Good to see you. What's going on?",
+    "Hey there! How's the recovery going today?",
+    "Hi! I'm here if you need anything — how are you feeling today?",
+  ] },
+  { test: /good (morning|afternoon|evening|night)/, replies: [
+    "Good morning! Hope you're feeling good today — let me know if you need anything.",
+    "Hey, good to hear from you! What can I help with?",
+  ] },
+  { test: /how('?s| is| are) (you|it going|things|everything)|what'?s up\b|how you doin/, replies: [
+    "I'm doing great, thanks for asking! More importantly — how are YOU doing with the recovery?",
+    "All good on my end! How's your day going so far?",
+    "Can't complain — I don't have knees to worry about 😄 How are you holding up today?",
+  ] },
+  { test: /\b(thank|thanks|thx|appreciate)/, replies: [
+    "Anytime! That's what I'm here for.",
+    "You got it — happy to help.",
+    "Of course! Keep up the great work, you're doing better than you think.",
+  ] },
+  { test: /\b(bye|goodbye|see ya|see you|later|gtg|talk soon)\b/, replies: [
+    "Take care! I'll be right here whenever you need me.",
+    "See you soon — go crush today's protocol!",
+    "Later! Proud of the work you're putting in.",
+  ] },
+  { test: /who are you|what are you|are you (a bot|real|human|ai|ai\?)/, replies: [
+    "I'm Curtis — think of me as your recovery buddy inside the app. I'm an AI, but I'm here for real questions and just to chat too.",
+    "I'm Curtis, your in-app assistant. I can help with the app or just talk — either way, I've got you.",
+  ] },
+  { test: /love this app|great app|you'?re the best|awesome|amazing|good job|nice job/, replies: [
+    "That means a lot — thank you! Keep showing up for yourself and the results will follow.",
+    "Appreciate you saying that! You're the one doing the actual work though — I just cheer from the sidelines.",
+  ] },
+  { test: /how('?s| is) my (recovery|progress|day)|doing (ok|okay|good|well)\??$/, replies: [
+    "From what I can see you're building real momentum — check your Score tab for the full breakdown, but keep showing up daily, that's what moves the needle most.",
+  ] },
+  { test: /i'?m (tired|struggling|frustrated|sore|in pain|discouraged|having a hard day|feeling down|stressed)/, replies: [
+    "That's honestly really normal in recovery — the tough stretches are part of the process, not a sign you're failing. Take it one day at a time, and lean on your Squad if you want support from people going through the same thing.",
+    "I hear you — recovery isn't linear and rough days happen. Be patient with yourself, stick to today's protocol as best you can, and if the pain feels like more than normal soreness, check in with your physician.",
+  ] },
+  { test: /\bjoke\b|make me laugh|funny/, replies: [
+    "Why did the hamstring break up with the quad? It just couldn't handle the tension. 😄 Now go do your stretches.",
+    "What do you call an athlete who never skips recovery day? Undefeated. That's the goal for you.",
+  ] },
 ];
 function getCurtisReply(input: string): string {
   const text = input.toLowerCase();
@@ -2636,7 +3173,10 @@ function getCurtisReply(input: string): string {
     if (score > 0 && (!best || score > best.score)) best = { answer: entry.answer, score };
   }
   if (best) return best.answer;
-  return `I'm not totally sure on that one — try asking about your Score, Protocol, Squad, Diary, Rewards, or your plan. Or reach the team directly at ${CURTIS_CONTACT.phone} / ${CURTIS_CONTACT.email}.`;
+  for (const entry of CURTIS_SMALLTALK) {
+    if (entry.test.test(text)) return entry.replies[Math.floor(Math.random() * entry.replies.length)];
+  }
+  return `I'm not totally sure on that one — try asking about your Score, Protocol, Squad, Journal, Rewards, or your plan. Or reach the team directly at ${CURTIS_CONTACT.phone} / ${CURTIS_CONTACT.email}.`;
 }
 function CurtisChat() {
   const [open, setOpen] = useState(false);
@@ -2801,28 +3341,78 @@ function GlobalMobileStyles() {
     document.body.style.height = "100%";
     (document.body.style as any).overscrollBehaviorY = "none";
   }, []);
-  // Below 700px this is a no-op (the .app-shell rule just restates the same
-  // inline styles already on the root div). At 700px+ it overrides them with
-  // !important — inline styles otherwise always win over stylesheet rules,
-  // so !important is the only way a media query can beat them. This is what
-  // turns "a phone screenshot stretched full-height on a monitor" into a
-  // proper centered desktop card with a sane fixed height, instead of a
-  // 430px-wide column awkwardly stretched to fill the entire browser height.
+  // THREE explicit compatibility tiers, each its own clearly-labeled block
+  // below. Below 768px (SCRIPT 1 / phone) this is a no-op — the .app-shell
+  // rule just restates the same inline styles already on the root div, so
+  // phones keep the full-screen experience exactly as before. At 768px+
+  // (SCRIPT 2 / tablet) and 1280px+ (SCRIPT 3 / desktop) the rules override
+  // the inline styles with !important — inline styles otherwise always win
+  // over stylesheet rules, so !important is the only way a media query can
+  // beat them. This is what turns "a phone screenshot stretched full-height
+  // on a monitor" into a proper centered card sized for that device, with
+  // text kept legible (not just scaled up blindly) at every tier.
   return (
     <style>{`
       html, body { height: 100%; margin: 0; background: ${T.bg}; }
       body { -webkit-tap-highlight-color: transparent; overscroll-behavior-y: none; }
-      @media (min-width: 700px) {
+
+      /* ── SCRIPT 1: PHONE (default, up to 767px) ──────────────────────
+         No overrides — this is the original full-viewport mobile layout.
+         Everything below only activates at larger widths. */
+
+      /* ── SCRIPT 2: TABLET / iPAD (768px – 1279px) ────────────────────
+         Centered app card sized for an iPad-class screen in either
+         orientation. Wider than the phone shell so multi-column content
+         (macro cards, gift-card grid, phase list) gets breathing room
+         instead of the phone's single tight column, and the base font
+         nudges up slightly since there's more room without anything
+         feeling cramped. */
+      @media (min-width: 768px) and (max-width: 1279px) {
         .app-shell {
           top: 50% !important;
+          left: 50% !important;
           transform: translate(-50%, -50%) !important;
-          width: 460px !important;
-          max-width: 460px !important;
-          height: 860px !important;
-          max-height: 92vh !important;
+          width: 640px !important;
+          max-width: 94vw !important;
+          height: 900px !important;
+          max-height: 94vh !important;
           border-radius: 28px !important;
           border: 1px solid ${T.border};
           box-shadow: 0 40px 120px rgba(0,0,0,0.65);
+          font-size: 15px;
+        }
+        .app-shell .cb-macro-grid {
+          grid-template-columns: repeat(4, 1fr) !important;
+        }
+        .app-shell .cb-stat-grid {
+          gap: 14px !important;
+        }
+      }
+
+      /* ── SCRIPT 3: DESKTOP (1280px and up) ───────────────────────────
+         Even more breathing room on a monitor: a taller, wider card with
+         a soft glow so it reads as an intentional desktop app rather than
+         a stretched phone screenshot, plus a further readability bump on
+         the base font size for anyone sitting further from the screen. */
+      @media (min-width: 1280px) {
+        .app-shell {
+          top: 50% !important;
+          left: 50% !important;
+          transform: translate(-50%, -50%) !important;
+          width: 760px !important;
+          max-width: 90vw !important;
+          height: 940px !important;
+          max-height: 94vh !important;
+          border-radius: 32px !important;
+          border: 1px solid ${T.border};
+          box-shadow: 0 50px 160px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.03);
+          font-size: 16px;
+        }
+        .app-shell .cb-macro-grid {
+          grid-template-columns: repeat(4, 1fr) !important;
+        }
+        .app-shell .cb-stat-grid {
+          gap: 16px !important;
         }
       }
     `}</style>
