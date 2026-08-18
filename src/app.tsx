@@ -277,7 +277,7 @@ const ELITE_FEATURES = [
   "Full daily food + exercise log — track every meal and workout, MyFitnessPal-style, and watch your score respond",
   "Priority support",
 ];
-function base64urlToBytes(s: string): Uint8Array {
+function base64urlToBytes(s: string) {
   const b64 = s.replace(/-/g, "+").replace(/_/g, "/") + "===".slice((s.length + 3) % 4);
   const bin = atob(b64);
   const bytes = new Uint8Array(bin.length);
@@ -1602,7 +1602,7 @@ function BodyProfileForm({ onSave }: { onSave: (p: BodyProfile) => void }) {
           <div key={key}>
             <label style={{ fontSize: 10, fontWeight: 700, color: T.textMuted, display: "block", marginBottom: 4 }}>{label}</label>
             <input type="number" placeholder={ph}
-              value={(form as Record<string, string>)[key]}
+              value={(form as unknown as Record<string, string>)[key]}
               onChange={e => setForm(f => ({ ...f, [key]: e.target.value }))}
               style={{ width: "100%", padding: "10px", borderRadius: 10, border: `1.5px solid ${T.border}`, background: T.card, color: T.textPrimary, fontSize: 14, fontFamily: "inherit", boxSizing: "border-box", outline: "none" }} />
           </div>
