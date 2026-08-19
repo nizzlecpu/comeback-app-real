@@ -1,5 +1,9 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo, ReactNode } from "react";
-import { Check, ChevronRight, Gauge, Users, Home, BookOpen, Dumbbell, RotateCcw, Heart, MessageCircle, Send, ArrowLeft, Lock, Crown, X, Clock, LogIn, LogOut, Cloud, User as UserIcon, UtensilsCrossed, Flame, Plus, Trash2, Bot, Gift, Camera, Delete } from "lucide-react";
+import { Check, ChevronRight, Gauge, Users, Home, BookOpen, Dumbbell, RotateCcw, Heart, MessageCircle, Send, ArrowLeft, Lock, Unlock, Crown, X, Clock, LogIn, LogOut, Cloud, User as UserIcon, UtensilsCrossed, Flame, Plus, Trash2, Bot, Gift, Camera, Delete, BicepsFlexed } from "lucide-react";
+// NOTE: BicepsFlexed was added to lucide-react in v0.386.0. package.json's
+// lucide-react range was bumped alongside this change (see package.json) —
+// run `npm install` after pulling this in so the installed version actually
+// has it, or the build will fail with "no exported member 'BicepsFlexed'".
 // Cloud account sync (optional — degrades gracefully if Firebase isn't configured yet,
 // see FIREBASE_SETUP.md). Requires `npm install firebase` in whatever project builds
 // this file. Nothing here runs unless FIREBASE_CONFIG below is filled in.
@@ -265,16 +269,21 @@ const PUBLIC_KEY_JWK: JsonWebKey = {
   crv: "P-256",
 } as JsonWebKey;
 const PRO_FEATURES = [
-  "Full personalized recovery protocol — every phase, every sport",
+  "Full personalized recovery protocol — every phase, every sport, with pro-athlete-specific notes for your exact injury and stage",
   "Daily task tracking with streaks and milestones",
-  "Personalized nutrition macros and supplement schedule",
-  "Sport squad community — post, reply, connect",
+  "Personalized calorie and macro targets set up front, with concrete serving guidance (real foods, real portions) scaled to your height and weight",
+  "Comeback Coins — earn them every day for showing up, and unlock real reward tiers (gift cards) as they add up over your program",
+  "Daily Journal with guided prompts to track how you're actually doing, mentally and physically",
+  "A daily sports-themed Wordle brain game",
+  "Sport squad community — post, reply, connect, with real replies from teammates",
+  "Curtis, your AI recovery assistant, for questions any time",
   "Zero ads, ever",
 ];
 const ELITE_FEATURES = [
   "Everything in Pro, plus:",
   "Recovery Score — a live 1–100 score with a needle that moves as you improve, built from your real task completion and how well your calories match your target",
   "Full daily food + exercise log — track every meal and workout, MyFitnessPal-style, and watch your score respond",
+  "Bigger reward tiers — higher gift card amounts than Pro at every tier, plus a Comeback tee included",
   "Priority support",
 ];
 function base64urlToBytes(s: string): Uint8Array {
@@ -902,11 +911,11 @@ function getRewardTier(plan: "pro" | "elite" | "trial", totalRecoveryDays: numbe
 //
 //   Action (per day)                          | Coins
 //   Journal entry completed                    | 10
-//   Daily task-completion score of 70 or higher | 15
-//   Full day of protocol tasks completed (100%) | 15
-//   Daily streak maintained                     | 5
+//   Daily task-completion score of 70 or higher | 10
+//   Full day of protocol tasks completed (100%) | 10
+//   Daily streak maintained                     | 10
 //   Wordle solved that day, no failed attempt    | 10
-//   Full supplement schedule completed           | 5
+//   Full supplement schedule completed           | 10
 //   Max possible per day                         | 60
 //
 // Tier math, done to keep this reachable by an "average" user who does some
@@ -1395,26 +1404,18 @@ function NavBtn({ icon, label, active, onClick }: { icon: ReactNode; label: stri
     </button>
   );
 }
-// A hand-drawn stroke icon didn't actually read as a bicep at any usable nav
-// size, so the Protocol tab icon goes back to the real 💪 emoji — but styled
-// so it fits the same active/inactive visual language as every lucide-react
-// icon in the nav instead of sitting there as a flat, fixed-color sticker.
-// SVG icons get this via `color: active ? T.neon : T.textMuted` (they're
-// unfilled strokes that just take on whatever color they're told); an emoji
-// glyph can't take a CSS color at all, so the closest equivalent is grayscale
-// + reduced opacity when inactive (echoes the muted, faded look of an
-// inactive lucide icon) and full color + opacity when active (echoes the
-// vivid, glowing look of an active one — NavBtn's own drop-shadow filter on
-// the wrapping div still applies on top of this for the glow).
-function EmojiNavIcon({ emoji, active, size = 17 }: { emoji: string; active: boolean; size?: number }) {
-  return (
-    <span style={{
-      display: "inline-block", fontSize: size, lineHeight: 1,
-      opacity: active ? 1 : 0.45,
-      filter: active ? "none" : "grayscale(1)",
-    }}>{emoji}</span>
-  );
-}
+// Two earlier attempts at the Protocol tab icon both fell short for the same
+// underlying reason: a hand-drawn stroke path didn't read as a bicep at nav
+// size, and swapping in the literal 💪 emoji "fixed" the shape but couldn't
+// be recolored — emoji glyphs render as pre-colored bitmap/vector art from
+// the font and ignore CSS `color` entirely, so it could only ever fake the
+// active/inactive states via opacity + grayscale instead of actually taking
+// on `T.neon` / `T.textMuted` like every other icon in the nav. The real fix
+// is lucide-react's own BicepsFlexed icon (see the import note above) — it's
+// a genuine stroke="currentColor" SVG, so NavBtn's existing
+// `color: active ? T.neon : T.textMuted` wrapper recolors it exactly the
+// same way it recolors Home/BookOpen/Users/Gift/Gauge. No custom component
+// needed here anymore.
 // A small gold "coin" badge for the Comeback Coins counter, stamped with
 // the same barbell mark used in the Logo component above — so the coin
 // visually reads as this app's own currency, not a generic dollar icon.
@@ -2691,6 +2692,42 @@ function AppDashboard({ saved, onReset, onUpgrade, onOpenAccount, authUser }: {
                       : "You've reached the top reward tier available for your plan and program length — nice work."}
                   </div>
                 </Card>
+                {(() => {
+                  const ceilingIdx = cyclesSafeTierIndex(totalRecoveryDays);
+                  const amounts = saved.plan === "elite" ? ELITE_TIER_AMOUNTS : PRO_TIER_AMOUNTS;
+                  return (
+                    <Card style={{ marginBottom: 16 }}>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: T.textPrimary, marginBottom: 4 }}>🔓 Reward tiers — coins unlock the next one</div>
+                      <p style={{ fontSize: 11, color: T.textMuted, marginBottom: 10, lineHeight: 1.5 }}>Every tier below is real and yours to open once your program ends — the Comeback Coins you rack up along the way decide which one you walk away with.</p>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                        {amounts.map((amt, i) => {
+                          const tierLabel = `$${amt} gift card${coinsInfo.tee ? " + Comeback tee" : ""}`;
+                          const unlocked = i <= coinsInfo.tierIndex;
+                          const isCurrent = i === coinsInfo.tierIndex;
+                          const cappedByProgram = !unlocked && i > ceilingIdx;
+                          const neededCoins = Math.max(0, Math.ceil(COINS_TIER_PCT_THRESHOLDS[i] * coinsInfo.possible) - coinsInfo.earned);
+                          return (
+                            <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", borderRadius: 10, background: isCurrent ? T.neonL : "transparent", border: `1px solid ${isCurrent ? T.neon + "60" : T.border}` }}>
+                              <div style={{ width: 26, height: 26, borderRadius: 13, background: unlocked ? T.neon : T.surface, border: `1px solid ${unlocked ? T.neon : T.border}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                                {unlocked ? <Unlock size={13} color={T.bg} /> : <Lock size={12} color={T.textMuted} />}
+                              </div>
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <div style={{ fontSize: 12, fontWeight: 800, color: unlocked ? T.textPrimary : T.textSecondary }}>{tierLabel}</div>
+                                <div style={{ fontSize: 10, color: unlocked ? T.neon : T.textMuted, fontWeight: 600 }}>
+                                  {unlocked
+                                    ? (isCurrent ? "Unlocked with your coins — this is your reward right now" : "Unlocked")
+                                    : cappedByProgram
+                                    ? "Unlocks on a longer recovery program"
+                                    : `🪙 Earn ${neededCoins} more coins to unlock`}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </Card>
+                  );
+                })()}
                 <Card style={{ marginBottom: 16 }}>
                   <div style={{ fontSize: 12, fontWeight: 700, color: T.textPrimary, marginBottom: 10 }}>Today's ways to earn Comeback Coins</div>
                   <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -2764,7 +2801,8 @@ function AppDashboard({ saved, onReset, onUpgrade, onOpenAccount, authUser }: {
                   </NeonCard>
                 ) : (
                   <NeonCard>
-                    <div style={{ fontWeight: 900, fontSize: 16, color: T.textPrimary, marginBottom: 10 }}>Choose your gift card</div>
+                    <div style={{ fontWeight: 900, fontSize: 16, color: T.textPrimary, marginBottom: 6 }}>Choose your gift card</div>
+                    <p style={{ fontSize: 12, color: T.textSecondary, marginBottom: 12, lineHeight: 1.5 }}>🔓 Unlocked with the <strong style={{ color: T.neon }}>{coinsInfo.earned} Comeback Coins</strong> you earned along the way — {tier.label} is yours to open.</p>
                     <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 14 }}>
                       {GIFT_CARD_BRANDS.map(b => (
                         <button key={b} onClick={() => setRewardBrandDraft(b)}
@@ -3309,7 +3347,7 @@ function AppDashboard({ saved, onReset, onUpgrade, onOpenAccount, authUser }: {
           widths — they divide the bar evenly instead of stacking up. */}
       <div style={{ flexShrink: 0, background: T.surface, borderTop: `1px solid ${T.border}`, paddingBottom: "env(safe-area-inset-bottom,12px)", paddingTop: 8, paddingLeft: 2, paddingRight: 2, display: "flex", justifyContent: "space-between", alignItems: "flex-end", zIndex: 50 }}>
         <NavBtn icon={<Home size={17} />}     label="Home"     active={tab === "home"}     onClick={() => setTab("home")} />
-        <NavBtn icon={<EmojiNavIcon emoji="💪" active={tab === "protocol"} size={17} />} label="Protocol" active={tab === "protocol"} onClick={() => setTab("protocol")} />
+        <NavBtn icon={<BicepsFlexed size={17} />} label="Protocol" active={tab === "protocol"} onClick={() => setTab("protocol")} />
         <NavBtn icon={<BookOpen size={17} />} label="Journal"  active={tab === "diary"}    onClick={() => setTab("diary")} />
         <button onClick={() => setTab("today")} style={{ width: 52, height: 52, borderRadius: 26, background: tab === "today" ? T.neon : T.card, display: "flex", alignItems: "center", justifyContent: "center", border: `2px solid ${tab === "today" ? T.neon : T.border}`, boxShadow: tab === "today" ? shadow.neon : shadow.sm, cursor: "pointer", marginBottom: 3, flexShrink: 0 }}>
           <Dumbbell size={20} color={tab === "today" ? T.bg : T.textSecondary} />
