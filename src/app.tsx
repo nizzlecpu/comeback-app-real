@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo, ReactNode } from "react";
-import { Check, ChevronRight, Gauge, Users, Home, BookOpen, Dumbbell, RotateCcw, Heart, MessageCircle, Send, ArrowLeft, Lock, Unlock, Crown, X, Clock, LogIn, LogOut, Cloud, User as UserIcon, UtensilsCrossed, Flame, Plus, Trash2, Bot, Gift, Camera, Delete, BicepsFlexed } from "lucide-react";
+import { Check, ChevronRight, Gauge, Users, Home, BookOpen, Dumbbell, RotateCcw, Heart, MessageCircle, Send, ArrowLeft, Lock, Unlock, Crown, X, Clock, LogIn, LogOut, Cloud, User as UserIcon, UtensilsCrossed, Flame, Plus, Trash2, Bot, Gift, Camera, Delete, BicepsFlexed, ExternalLink, FileText } from "lucide-react";
 // NOTE: BicepsFlexed was added to lucide-react in v0.386.0. package.json's
 // lucide-react range was bumped alongside this change (see package.json) —
 // run `npm install` after pulling this in so the installed version actually
@@ -265,6 +265,10 @@ function markTrialUsed(): void {
 // the user was never issued a valid signature for.
 const PLAN_PRO_URL = "https://buy.stripe.com/5kQ3cu5P36NtcWh1ZC67S00";
 const PLAN_ELITE_URL = "https://buy.stripe.com/dRm9AS91ffjZbSd1ZC67S01";
+// Stripe-hosted Customer Portal — lets a subscriber view invoices, update
+// their card, and cancel their own subscription (self-service, no email
+// needed) without ever handing Comeback their payment details directly.
+const STRIPE_CUSTOMER_PORTAL_URL = "https://billing.stripe.com/p/login/5kQ3cu5P36NtcWh1ZC67S00";
 const PUBLIC_KEY_JWK: JsonWebKey = {
   key_ops: ["verify"], ext: true, kty: "EC",
   x: "7Pz2UHGSPeHHz1BdjEBSA3AyB7n5ONAo6Zig4kAmrgw",
@@ -1972,11 +1976,33 @@ function GoalSelect({ onNext, onBack }: { onNext: (g: typeof GOALS_LIST[0]) => v
 }
 
 // ── PAYWALL (Stripe checkout + license redemption) ────────────────────────────
-function Paywall({ onUnlock, onBack, onTrial }: { onUnlock: (plan: "pro" | "elite", code: string) => void; onBack: () => void; onTrial: () => void }) {
+function Paywall({ onUnlock, onBack, onTrial, onOpenTerms }: { onUnlock: (plan: "pro" | "elite", code: string) => void; onBack: () => void; onTrial: () => void; onOpenTerms: () => void }) {
   const trialAvailable = !hasUsedTrial();
   const [code, setCode] = useState("");
   const [checking, setChecking] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Tracks whether the athlete has clicked out to Stripe checkout — used to
+  // scroll/highlight the license-key box the moment they come back to this
+  // tab, since the code arrives by email and this screen has no other way
+  // of knowing checkout finished. See openCheckout() and the effect below.
+  const [awaitingCheckout, setAwaitingCheckout] = useState(false);
+  const licenseBoxRef = useRef<HTMLDivElement | null>(null);
+
+  const openCheckout = (url: string) => {
+    window.open(url, "_blank");
+    setAwaitingCheckout(true);
+  };
+
+  useEffect(() => {
+    if (!awaitingCheckout) return;
+    const onVisible = () => {
+      if (document.visibilityState === "visible") {
+        licenseBoxRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [awaitingCheckout]);
 
   const handleRedeem = async () => {
     if (!code.trim()) return;
@@ -2005,9 +2031,33 @@ function Paywall({ onUnlock, onBack, onTrial }: { onUnlock: (plan: "pro" | "elit
         </div>
         <StepBar total={6} current={5} />
         <h2 style={{ fontWeight: 900, fontSize: 22, color: T.textPrimary, marginBottom: 4 }}>Choose your plan</h2>
-        <p style={{ fontSize: 13, color: T.textSecondary, marginBottom: 12 }}>Secure checkout via Stripe. Cancel anytime.</p>
+        <p style={{ fontSize: 13, color: T.textSecondary, marginBottom: 12 }}>Secure checkout via Stripe. Subscriptions renew automatically every month until you cancel — cancel anytime, no phone call needed.</p>
       </div>
       <div style={{ flex: 1, overflowY: "auto", padding: "0 20px 32px" }}>
+        <div ref={licenseBoxRef} style={{
+          background: awaitingCheckout ? T.neonL : T.surface, borderRadius: 16, padding: 16,
+          border: `1.5px solid ${awaitingCheckout ? T.neon : T.border}`, marginBottom: 16,
+          boxShadow: awaitingCheckout ? shadow.neon : "none",
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
+            {awaitingCheckout ? <Unlock size={14} color={T.neon} /> : <Lock size={13} color={T.textMuted} />}
+            <span style={{ fontWeight: 800, fontSize: 13, color: T.textPrimary }}>
+              {awaitingCheckout ? "Just paid? Enter your license key" : "Already purchased?"}
+            </span>
+          </div>
+          <p style={{ fontSize: 11, color: T.textMuted, marginBottom: 10, lineHeight: 1.5 }}>
+            {awaitingCheckout
+              ? "Check your email for the license key we sent right after checkout, then paste it below to unlock the app."
+              : "Enter the license key you received after checkout to unlock the app on this device."}
+          </p>
+          <input value={code} onChange={e => setCode(e.target.value)} placeholder="CBK1.xxxxx.yyyyy"
+            style={{ width: "100%", padding: "11px 12px", borderRadius: 10, border: `1.5px solid ${error ? T.red : T.border}`, background: T.card, color: T.textPrimary, fontSize: 12, fontFamily: "monospace", outline: "none", boxSizing: "border-box", marginBottom: 8 }} />
+          {error && <div style={{ fontSize: 11, color: T.red, marginBottom: 8 }}>{error}</div>}
+          <button onClick={handleRedeem} disabled={checking || !code.trim()}
+            style={{ width: "100%", padding: "11px", borderRadius: 10, background: code.trim() ? T.indigo : T.border, color: code.trim() ? "white" : T.textMuted, fontWeight: 700, fontSize: 12, border: "none", cursor: code.trim() ? "pointer" : "not-allowed" }}>
+            {checking ? "Verifying…" : "Unlock with license key"}
+          </button>
+        </div>
         <div style={{ background: T.card, border: `1.5px solid ${T.border}`, borderRadius: 18, padding: "18px 16px", marginBottom: 14, boxShadow: shadow.sm }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
             <span style={{ fontWeight: 900, fontSize: 17, color: T.textPrimary }}>Pro</span>
@@ -2020,7 +2070,7 @@ function Paywall({ onUnlock, onBack, onTrial }: { onUnlock: (plan: "pro" | "elit
               </li>
             ))}
           </ul>
-          <button onClick={() => window.open(PLAN_PRO_URL, "_blank")}
+          <button onClick={() => openCheckout(PLAN_PRO_URL)}
             style={{ width: "100%", padding: "13px", borderRadius: 12, background: T.textPrimary, color: T.bg, fontWeight: 800, fontSize: 14, border: "none", cursor: "pointer" }}>
             Get Pro →
           </button>
@@ -2039,7 +2089,7 @@ function Paywall({ onUnlock, onBack, onTrial }: { onUnlock: (plan: "pro" | "elit
               </li>
             ))}
           </ul>
-          <button onClick={() => window.open(PLAN_ELITE_URL, "_blank")}
+          <button onClick={() => openCheckout(PLAN_ELITE_URL)}
             style={{ width: "100%", padding: "13px", borderRadius: 12, background: T.neon, color: T.bg, fontWeight: 800, fontSize: 14, border: "none", cursor: "pointer", boxShadow: shadow.neon }}>
             Get Elite →
           </button>
@@ -2063,20 +2113,10 @@ function Paywall({ onUnlock, onBack, onTrial }: { onUnlock: (plan: "pro" | "elit
             Comeback is not a doctor and isn't a substitute for medical care — always get examined and cleared by a licensed physician before and throughout your recovery. Plenty of users find their doctor is impressed by the progress they've tracked along the way.
           </p>
         </div>
-        <div style={{ background: T.surface, borderRadius: 16, padding: 16, border: `1px solid ${T.border}` }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
-            <Lock size={13} color={T.textMuted} />
-            <span style={{ fontWeight: 800, fontSize: 12, color: T.textPrimary }}>Already purchased?</span>
-          </div>
-          <p style={{ fontSize: 11, color: T.textMuted, marginBottom: 10, lineHeight: 1.5 }}>Enter the license key you received after checkout to unlock the app on this device.</p>
-          <input value={code} onChange={e => setCode(e.target.value)} placeholder="CBK1.xxxxx.yyyyy"
-            style={{ width: "100%", padding: "11px 12px", borderRadius: 10, border: `1.5px solid ${error ? T.red : T.border}`, background: T.card, color: T.textPrimary, fontSize: 12, fontFamily: "monospace", outline: "none", boxSizing: "border-box", marginBottom: 8 }} />
-          {error && <div style={{ fontSize: 11, color: T.red, marginBottom: 8 }}>{error}</div>}
-          <button onClick={handleRedeem} disabled={checking || !code.trim()}
-            style={{ width: "100%", padding: "11px", borderRadius: 10, background: code.trim() ? T.indigo : T.border, color: code.trim() ? "white" : T.textMuted, fontWeight: 700, fontSize: 12, border: "none", cursor: code.trim() ? "pointer" : "not-allowed" }}>
-            {checking ? "Verifying…" : "Unlock with license key"}
-          </button>
-        </div>
+        <p style={{ fontSize: 10, color: T.textMuted, lineHeight: 1.6, textAlign: "center", margin: "0 4px 4px" }}>
+          Plans billed monthly and renew automatically until cancelled. Manage or cancel anytime from your Account panel. By subscribing you agree to our{" "}
+          <button onClick={onOpenTerms} style={{ background: "none", border: "none", padding: 0, cursor: "pointer", color: T.textSecondary, textDecoration: "underline", fontSize: 10 }}>Terms of Service</button>.
+        </p>
       </div>
     </div>
   );
@@ -2161,9 +2201,10 @@ function EliteUpgradeInline({ onUpgrade }: { onUpgrade: (code: string) => void }
 }
 
 // ── ACCOUNT PANEL (sign in / create account / sync status) ────────────────────
-function AccountPanel({ onClose, authUser }: {
+function AccountPanel({ onClose, authUser, onOpenTerms }: {
   onClose: () => void;
   authUser: FirebaseUser | null;
+  onOpenTerms: () => void;
 }) {
   const [mode, setMode] = useState<"signin" | "signup" | "reset" | "link">("signin");
   const [email, setEmail] = useState("");
@@ -2210,6 +2251,19 @@ function AccountPanel({ onClose, authUser }: {
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
           <div style={{ fontWeight: 900, fontSize: 18, color: T.textPrimary }}>{authUser ? "Account" : "Sync your progress"}</div>
           <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: T.textMuted }}><X size={20} /></button>
+        </div>
+        <div style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 14, padding: 14, marginBottom: 16 }}>
+          <div style={{ fontWeight: 800, fontSize: 13, color: T.textPrimary, marginBottom: 4 }}>Subscription &amp; billing</div>
+          <p style={{ fontSize: 11, color: T.textSecondary, lineHeight: 1.5, marginBottom: 10 }}>
+            Paid plans renew automatically each month via Stripe. Update your card, view invoices, or cancel your subscription anytime — no email needed, and it takes effect at the end of your current billing period.
+          </p>
+          <a href={STRIPE_CUSTOMER_PORTAL_URL} target="_blank" rel="noopener noreferrer"
+            style={{ width: "100%", boxSizing: "border-box", padding: 12, borderRadius: 10, background: T.textPrimary, color: T.bg, fontWeight: 800, fontSize: 12, border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, textDecoration: "none", marginBottom: 8 }}>
+            Manage or cancel my subscription <ExternalLink size={13} />
+          </a>
+          <button onClick={onOpenTerms} style={{ width: "100%", background: "none", border: "none", cursor: "pointer", fontSize: 11, color: T.textMuted, display: "flex", alignItems: "center", justifyContent: "center", gap: 5, padding: "2px 0" }}>
+            <FileText size={12} /> View Terms of Service
+          </button>
         </div>
         {!cloudSyncConfigured ? (
           <div style={{ fontSize: 13, color: T.textSecondary, lineHeight: 1.6 }}>
@@ -2266,6 +2320,59 @@ function AccountPanel({ onClose, authUser }: {
             )}
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+// ── TERMS OF SERVICE ───────────────────────────────────────────────────────────
+// Plain-language billing/subscription/cancellation terms, surfaced from the
+// Paywall (before checkout) and the Account panel (anytime after). Kept as a
+// clear, honest summary of how billing actually works in this app — not a
+// substitute for a real attorney-drafted ToS, which is called out explicitly
+// below and should be commissioned before this is relied on as a legal
+// document.
+// A function (not a top-level constant) because it references CURTIS_CONTACT,
+// which is declared further down in this file — evaluating this at module
+// load time (before CURTIS_CONTACT's own declaration runs) would throw.
+// Calling it lazily from inside the component's render sidesteps that
+// entirely, same as getRewardsContractSections above.
+function getTermsOfServiceSections(): { title: string; body: string }[] {
+  return [
+    { title: "Subscriptions & billing", body: `Comeback offers two paid, recurring monthly subscription plans — Pro ($9.99/mo) and Elite ($28.99/mo) — billed in advance through our payment processor, Stripe. By starting a subscription you authorize Comeback to charge your payment method automatically, on the same date each month, until you cancel.` },
+    { title: "Automatic renewal", body: "All subscriptions renew automatically at the end of each billing period — you do not need to take any action for your plan to continue. We (via Stripe) send a reminder email in the days before each renewal so a charge is never a surprise. You can cancel at any time before a renewal date to avoid being charged for the next period." },
+    { title: "How to cancel", body: "You can cancel your subscription yourself at any time, with no phone call and no email required, from the \"Manage or cancel my subscription\" link in your Account panel — this opens Stripe's secure Customer Portal where cancellation takes one click. Cancellation takes effect at the end of your current paid billing period; you keep access through the period you already paid for, and you will not be charged again after that." },
+    { title: "Refunds", body: "Charges already processed are generally non-refundable, except where required by law or where Comeback agrees to a refund at its discretion (for example, a clear billing error). Cancelling stops future charges but does not itself refund the current period." },
+    { title: "Free trial", body: "Elite's 12-hour free trial requires no card and automatically ends after 12 hours — it does not convert into a paid subscription on its own and will never result in a charge unless you separately choose to subscribe. Each account is eligible for one free trial." },
+    { title: "License keys & access", body: "After checkout, Stripe/Comeback issues a license key by email that unlocks the app on your device(s). Keep this key — you may be asked to re-enter it if you reinstall the app or sign in on a new device. Access to paid features is tied to an active subscription; if a subscription lapses or is cancelled, paid features lock at the end of that billing period." },
+    { title: "Rewards program", body: "Comeback Coins and the gift-card rewards program have their own additional terms — including that cancelling or being refunded before completing your program forfeits that program's reward — presented and electronically signed separately at the time you claim a reward. See the Rewards tab for full details." },
+    { title: "Not medical advice", body: "Comeback is a coaching and habit-tracking tool, not a medical provider. Nothing in the app is medical advice, diagnosis, or treatment. Always get examined and cleared by a licensed physician before and throughout any recovery program." },
+    { title: "Changes to these terms", body: "Comeback may update these terms from time to time as the app or its billing practices change. Continued use of the app after an update constitutes acceptance of the revised terms." },
+    { title: "Contact", body: `Questions about your subscription or billing? Reach the Comeback team directly at ${CURTIS_CONTACT.phone} or ${CURTIS_CONTACT.email}.` },
+    { title: "Not a substitute for legal advice", body: "This page is a good-faith, plain-language summary of how billing, renewal, and cancellation actually work in this app — it is not a formal legal document drafted or reviewed by an attorney. Comeback recommends having these terms reviewed by a licensed attorney in your jurisdiction before relying on them as a binding legal contract." },
+  ];
+}
+function TermsOfServicePanel({ onClose }: { onClose: () => void }) {
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "flex-end", justifyContent: "center", zIndex: 220 }} onClick={onClose}>
+      <div onClick={e => e.stopPropagation()} style={{ width: "100%", maxWidth: 430, background: T.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: "20px 20px calc(24px + env(safe-area-inset-bottom,0px))", maxHeight: "85vh", overflowY: "auto", boxSizing: "border-box" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 900, fontSize: 18, color: T.textPrimary }}>
+            <FileText size={18} color={T.neon} /> Terms of Service
+          </div>
+          <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: T.textMuted }}><X size={20} /></button>
+        </div>
+        <p style={{ fontSize: 11, color: T.textMuted, marginBottom: 16 }}>Last updated {new Date().toLocaleDateString(undefined, { year: "numeric", month: "long" })}. Covers subscriptions, billing, and cancellation.</p>
+        {getTermsOfServiceSections().map((sec, i) => (
+          <div key={i} style={{ marginBottom: 14 }}>
+            <div style={{ fontWeight: 800, fontSize: 12, color: T.neon, marginBottom: 3 }}>{sec.title}</div>
+            <p style={{ fontSize: 12, color: T.textSecondary, lineHeight: 1.6, margin: 0 }}>{sec.body}</p>
+          </div>
+        ))}
+        <a href={STRIPE_CUSTOMER_PORTAL_URL} target="_blank" rel="noopener noreferrer"
+          style={{ width: "100%", boxSizing: "border-box", padding: 13, borderRadius: 12, background: T.neon, color: T.bg, fontWeight: 800, fontSize: 13, border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, textDecoration: "none", boxShadow: shadow.neon, marginTop: 4 }}>
+          Manage or cancel my subscription <ExternalLink size={14} />
+        </a>
       </div>
     </div>
   );
@@ -2777,28 +2884,33 @@ function AppDashboard({ saved, onReset, onUpgrade, onOpenAccount, authUser }: {
                   const amounts = saved.plan === "elite" ? ELITE_TIER_AMOUNTS : PRO_TIER_AMOUNTS;
                   return (
                     <Card style={{ marginBottom: 16 }}>
-                      <div style={{ fontSize: 12, fontWeight: 700, color: T.textPrimary, marginBottom: 4 }}>🔓 Reward tiers — coins unlock the next one</div>
-                      <p style={{ fontSize: 11, color: T.textMuted, marginBottom: 10, lineHeight: 1.5 }}>Every tier below is real and yours to open once your program ends — the Comeback Coins you rack up along the way decide which one you walk away with.</p>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: T.textPrimary, marginBottom: 4 }}>🔓 Your reward tier — coins move you up</div>
+                      <p style={{ fontSize: 11, color: T.textMuted, marginBottom: 10, lineHeight: 1.5 }}>
+                        You receive <strong style={{ color: T.textPrimary }}>one reward</strong> — the highest tier your Comeback Coins reach by the end of your program. The tiers below show your path there, not stacked rewards — passing the ${amounts[0]} tier on your way to ${amounts[1] ?? amounts[0]} doesn't mean you get both.
+                      </p>
                       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                         {amounts.map((amt, i) => {
                           const tierLabel = `$${amt} gift card${coinsInfo.tee ? " + Comeback tee" : ""}`;
-                          const unlocked = i <= coinsInfo.tierIndex;
+                          const reached = i <= coinsInfo.tierIndex;
                           const isCurrent = i === coinsInfo.tierIndex;
-                          const cappedByProgram = !unlocked && i > ceilingIdx;
+                          const surpassed = reached && !isCurrent;
+                          const cappedByProgram = !reached && i > ceilingIdx;
                           const neededCoins = Math.max(0, Math.ceil(COINS_TIER_PCT_THRESHOLDS[i] * coinsInfo.possible) - coinsInfo.earned);
                           return (
-                            <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", borderRadius: 10, background: isCurrent ? T.neonL : "transparent", border: `1px solid ${isCurrent ? T.neon + "60" : T.border}` }}>
-                              <div style={{ width: 26, height: 26, borderRadius: 13, background: unlocked ? T.neon : T.surface, border: `1px solid ${unlocked ? T.neon : T.border}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                                {unlocked ? <Unlock size={13} color={T.bg} /> : <Lock size={12} color={T.textMuted} />}
+                            <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", borderRadius: 10, background: isCurrent ? T.neonL : "transparent", border: `1px solid ${isCurrent ? T.neon + "60" : T.border}`, opacity: surpassed ? 0.6 : 1 }}>
+                              <div style={{ width: 26, height: 26, borderRadius: 13, background: isCurrent ? T.neon : T.surface, border: `1px solid ${reached ? T.neon : T.border}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                                {isCurrent ? <Unlock size={13} color={T.bg} /> : reached ? <Check size={13} color={T.neon} /> : <Lock size={12} color={T.textMuted} />}
                               </div>
                               <div style={{ flex: 1, minWidth: 0 }}>
-                                <div style={{ fontSize: 12, fontWeight: 800, color: unlocked ? T.textPrimary : T.textSecondary }}>{tierLabel}</div>
-                                <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 10, color: unlocked ? T.neon : T.textMuted, fontWeight: 600 }}>
-                                  {unlocked
-                                    ? (isCurrent ? "Unlocked with your coins — this is your reward right now" : "Unlocked")
+                                <div style={{ fontSize: 12, fontWeight: 800, color: reached ? T.textPrimary : T.textSecondary }}>{tierLabel}</div>
+                                <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 10, color: isCurrent ? T.neon : T.textMuted, fontWeight: 600 }}>
+                                  {isCurrent
+                                    ? "This is the reward you'll receive right now"
+                                    : surpassed
+                                    ? "Passed — folded into your reward above, not given separately"
                                     : cappedByProgram
                                     ? "Unlocks on a longer recovery program"
-                                    : <><ComebackCoin size={11} /> Earn {neededCoins} more coins to unlock</>}
+                                    : <><ComebackCoin size={11} /> Earn {neededCoins} more coins to move up to this tier</>}
                                 </div>
                               </div>
                             </div>
@@ -2811,25 +2923,34 @@ function AppDashboard({ saved, onReset, onUpgrade, onOpenAccount, authUser }: {
                 <Card style={{ marginBottom: 16 }}>
                   <div style={{ fontSize: 12, fontWeight: 700, color: T.textPrimary, marginBottom: 4 }}>🎁 Reward catalog</div>
                   <p style={{ fontSize: 11, color: T.textMuted, marginBottom: 10, lineHeight: 1.5 }}>
-                    {recoveryComplete
-                      ? "Your program is complete — pick your gift card brand below when you claim your reward."
-                      : "A preview of what you're working toward — every brand unlocks together once your reward becomes claimable."}
+                    {rewardClaim
+                      ? `You've claimed your ${rewardClaim.brand} gift card — one reward per completed program, so the rest are locked.`
+                      : recoveryComplete
+                      ? "Your program is complete — pick ONE gift card brand below when you claim your reward. Once you claim it, every other brand locks."
+                      : "A preview of what you're working toward — you'll pick just one of these when your reward becomes claimable."}
                   </p>
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
-                    {GIFT_CARD_CATALOG.map(item => (
-                      <div key={item.brand} style={{
-                        position: "relative", display: "flex", flexDirection: "column", alignItems: "center", gap: 4,
-                        padding: "12px 6px", borderRadius: 12, border: `1px solid ${T.border}`,
-                        background: recoveryComplete ? T.card : T.surface, opacity: recoveryComplete ? 1 : 0.55,
-                      }}>
-                        {!recoveryComplete && (
-                          <div style={{ position: "absolute", top: 6, right: 6 }}><Lock size={11} color={T.textMuted} /></div>
-                        )}
-                        <span style={{ fontSize: 22 }}>{item.emoji}</span>
-                        <span style={{ fontSize: 11, fontWeight: 800, color: recoveryComplete ? T.textPrimary : T.textSecondary, textAlign: "center" }}>{item.brand}</span>
-                        <span style={{ fontSize: 9, color: T.textMuted, textTransform: "uppercase", letterSpacing: "0.4px" }}>{item.category}</span>
-                      </div>
-                    ))}
+                    {GIFT_CARD_CATALOG.map(item => {
+                      const itemUnlocked = rewardClaim ? item.brand === rewardClaim.brand : recoveryComplete;
+                      return (
+                        <div key={item.brand} style={{
+                          position: "relative", display: "flex", flexDirection: "column", alignItems: "center", gap: 4,
+                          padding: "12px 6px", borderRadius: 12,
+                          border: `1px solid ${itemUnlocked && rewardClaim ? T.neon : T.border}`,
+                          background: itemUnlocked ? T.card : T.surface, opacity: itemUnlocked ? 1 : 0.55,
+                        }}>
+                          {!itemUnlocked && (
+                            <div style={{ position: "absolute", top: 6, right: 6 }}><Lock size={11} color={T.textMuted} /></div>
+                          )}
+                          {itemUnlocked && rewardClaim && (
+                            <div style={{ position: "absolute", top: 6, right: 6 }}><Check size={11} color={T.neon} /></div>
+                          )}
+                          <span style={{ fontSize: 22 }}>{item.emoji}</span>
+                          <span style={{ fontSize: 11, fontWeight: 800, color: itemUnlocked ? T.textPrimary : T.textSecondary, textAlign: "center" }}>{item.brand}</span>
+                          <span style={{ fontSize: 9, color: T.textMuted, textTransform: "uppercase", letterSpacing: "0.4px" }}>{item.category}</span>
+                        </div>
+                      );
+                    })}
                   </div>
                 </Card>
                 <Card style={{ marginBottom: 16 }}>
@@ -3821,6 +3942,7 @@ export default function App() {
   // dashboard is actually built — see finalizeSetup below.
   const [pendingPlan, setPendingPlan] = useState<{ plan: "pro" | "elite" | "trial"; code: string } | null>(null);
   const [showAccount, setShowAccount] = useState(false);
+  const [showTerms, setShowTerms] = useState(false);
   const [authUser, setAuthUser] = useState<FirebaseUser | null>(null);
   const lastSyncedUidRef = useRef<string | null>(null);
 
@@ -3972,7 +4094,7 @@ export default function App() {
       {screen === "injury"   && <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column" }}><InjurySelect   onNext={i  => { setInjury(i);   setScreen("severity"); }} onBack={() => setScreen("sport")} /></div>}
       {screen === "severity" && <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column" }}><SeveritySelect onNext={sv => { setSeverity(sv); setScreen("goal");     }} onBack={() => setScreen("injury")} /></div>}
       {screen === "goal"     && <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column" }}><GoalSelect     onNext={g  => { setGoal(g);     setScreen("paywall");  }} onBack={() => setScreen("severity")} /></div>}
-      {screen === "paywall"  && <Paywall onUnlock={handlePlanUnlock} onBack={() => setScreen("goal")} onTrial={handleTrial} />}
+      {screen === "paywall"  && <Paywall onUnlock={handlePlanUnlock} onBack={() => setScreen("goal")} onTrial={handleTrial} onOpenTerms={() => setShowTerms(true)} />}
       {screen === "bodyProfile" && pendingPlan && (
         <div style={{ flex: 1, overflowY: "auto" }}>
           <BodyProfileOnboarding
@@ -3989,7 +4111,10 @@ export default function App() {
         </>
       )}
       {showAccount && (
-        <AccountPanel onClose={() => setShowAccount(false)} authUser={authUser} />
+        <AccountPanel onClose={() => setShowAccount(false)} authUser={authUser} onOpenTerms={() => setShowTerms(true)} />
+      )}
+      {showTerms && (
+        <TermsOfServicePanel onClose={() => setShowTerms(false)} />
       )}
     </div>
   );
