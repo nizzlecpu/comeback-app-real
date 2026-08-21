@@ -317,8 +317,8 @@ async function verifyLicenseCode(code: string): Promise<LicenseResult> {
     const ok = await subtle.verify(
       { name: "ECDSA", hash: "SHA-256" } as EcdsaParams,
       publicKey,
-      base64urlToBytes(sigPart),
-      base64urlToBytes(payloadPart)
+      base64urlToBytes(sigPart) as BufferSource,
+      base64urlToBytes(payloadPart) as BufferSource
     );
     if (!ok) return { valid: false, reason: "bad-signature" };
     return { valid: true, plan: payload.plan, issuedAt: payload.iat, id: payload.id };
@@ -1671,7 +1671,7 @@ function BodyProfileForm({ onSave }: { onSave: (p: BodyProfile) => void }) {
           <div key={key}>
             <label style={{ fontSize: 10, fontWeight: 700, color: T.textMuted, display: "block", marginBottom: 4 }}>{label}</label>
             <input type="number" placeholder={ph}
-              value={(form as Record<string, string>)[key]}
+              value={(form as unknown as Record<string, string>)[key]}
               onChange={e => setForm(f => ({ ...f, [key]: e.target.value }))}
               style={{ width: "100%", padding: "10px", borderRadius: 10, border: `1.5px solid ${T.border}`, background: T.card, color: T.textPrimary, fontSize: 14, fontFamily: "inherit", boxSizing: "border-box", outline: "none" }} />
           </div>
