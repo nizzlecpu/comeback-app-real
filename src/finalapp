@@ -264,8 +264,8 @@ const PLAN_PRO_URL = "https://buy.stripe.com/5kQ3cu5P36NtcWh1ZC67S00";
 const PLAN_ELITE_URL = "https://buy.stripe.com/dRm9AS91ffjZbSd1ZC67S01";
 const PUBLIC_KEY_JWK: JsonWebKey = {
   key_ops: ["verify"], ext: true, kty: "EC",
-  x: "rxweEwBKStDtmPACeGZTeem3DosMdCrPzxvEBP-W3yQ",
-  y: "NqzZGAzX23lYoIijwn3xzMqOYfruDy_wTveb-3eF8u8",
+  x: "7Pz2UHGSPeHHz1BdjEBSA3AyB7n5ONAo6Zig4kAmrgw",
+  y: "N0r0szaXaelKnWav3_MtTHfULSgg4IF3O0hbhn2a-bw",
   crv: "P-256",
 } as JsonWebKey;
 const PRO_FEATURES = [
@@ -3508,8 +3508,15 @@ function CurtisChat() {
 // outside this file; see the SEO checklist handed to the user separately.
 function SEOHead() {
   useEffect(() => {
+    // Kept in sync with the static tags in index.html on purpose — those are
+    // what social/chat link-preview crawlers (Facebook, X, LinkedIn, Slack,
+    // Discord, WhatsApp, iMessage) actually see, since none of them execute
+    // JS. This effect re-applies the same values at runtime so they stay
+    // correct if the SPA ever grows additional routes; it is NOT the primary
+    // source of truth for the tags a non-JS crawler sees on first load.
     document.title = "Comeback — Sports Injury Recovery App | Personalized Recovery Plans & Live Recovery Score";
     const description = "Comeback is the leading app in sports injury recovery, helping athletes get back to their prime. Get a personalized recovery protocol, nutrition plan, and a live Recovery Score for a fraction of the cost of a personal trainer or physical therapist. Plans from $9.99/mo. Comeback is not a doctor — always get medically examined and cleared before and during recovery.";
+    const ogImage = "https://www.comebacktrainer.com/og-image.png";
     const setMeta = (attr: "name" | "property", key: string, content: string) => {
       let tag = document.querySelector(`meta[${attr}="${key}"]`) as HTMLMetaElement | null;
       if (!tag) { tag = document.createElement("meta"); tag.setAttribute(attr, key); document.head.appendChild(tag); }
@@ -3524,21 +3531,23 @@ function SEOHead() {
     setMeta("property", "og:type", "website");
     setMeta("property", "og:url", "https://www.comebacktrainer.com/");
     setMeta("property", "og:site_name", "Comeback");
-    setMeta("name", "twitter:card", "summary");
+    setMeta("property", "og:image", ogImage);
+    setMeta("property", "og:image:width", "1200");
+    setMeta("property", "og:image:height", "630");
+    setMeta("name", "twitter:card", "summary_large_image");
     setMeta("name", "twitter:title", "Comeback — Sports Injury Recovery App");
     setMeta("name", "twitter:description", description);
+    setMeta("name", "twitter:image", ogImage);
 
     let canonical = document.querySelector('link[rel="canonical"]') as HTMLLinkElement | null;
     if (!canonical) { canonical = document.createElement("link"); canonical.rel = "canonical"; document.head.appendChild(canonical); }
     canonical.href = "https://www.comebacktrainer.com/";
 
-    const logoSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><circle cx="12" cy="12" r="11" fill="${T.bg}" stroke="${T.neon}" stroke-width="2"/><rect x="2" y="9" width="4" height="6" rx="1.5" fill="${T.neon}"/><rect x="18" y="9" width="4" height="6" rx="1.5" fill="${T.neon}"/><rect x="5" y="11" width="14" height="2" rx="1" fill="white"/><rect x="8" y="7" width="3" height="10" rx="1.5" fill="white"/><rect x="13" y="7" width="3" height="10" rx="1.5" fill="white"/></svg>`;
-    const faviconHref = `data:image/svg+xml,${encodeURIComponent(logoSvg)}`;
-    let favicon = document.querySelector('link[rel="icon"]') as HTMLLinkElement | null;
-    if (!favicon) { favicon = document.createElement("link"); favicon.rel = "icon"; document.head.appendChild(favicon); }
-    favicon.href = faviconHref;
-    setMeta("property", "og:image", faviconHref);
-
+    // Favicon is a static file (public/favicon.svg) referenced directly from
+    // index.html — no need to inject it here too. og:image above now points
+    // at a real hosted PNG (public/og-image.png) instead of a data: URI;
+    // Facebook/X/LinkedIn require an absolute https:// URL for og:image and
+    // don't reliably render data URIs at all.
     const ldJson = {
       "@context": "https://schema.org",
       "@graph": [
@@ -3546,7 +3555,7 @@ function SEOHead() {
           "@type": "Organization",
           "name": "Comeback",
           "url": "https://www.comebacktrainer.com/",
-          "logo": faviconHref,
+          "logo": "https://www.comebacktrainer.com/logo.png",
           "description": "Comeback builds personalized sports injury recovery programs for athletes.",
           "contactPoint": {
             "@type": "ContactPoint",
