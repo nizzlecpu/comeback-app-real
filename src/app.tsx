@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo, ReactNode } from "react";
-import { Check, ChevronRight, Gauge, Users, Home, BookOpen, Dumbbell, RotateCcw, Heart, MessageCircle, Send, ArrowLeft, Lock, Unlock, Crown, X, Clock, LogIn, LogOut, Cloud, User as UserIcon, UtensilsCrossed, Flame, Plus, Trash2, Bot, Gift, Camera, Delete, BicepsFlexed, ExternalLink, FileText } from "lucide-react";
+import { Check, ChevronRight, Gauge, Users, Home, BookOpen, Dumbbell, RotateCcw, Heart, MessageCircle, Send, ArrowLeft, Lock, Unlock, Crown, X, Clock, LogIn, LogOut, Cloud, User as UserIcon, UtensilsCrossed, Flame, Plus, Trash2, Bot, Gift, Camera, Delete, BicepsFlexed, ExternalLink, FileText, Phone, Mail } from "lucide-react";
 // NOTE: BicepsFlexed was added to lucide-react in v0.386.0. package.json's
 // lucide-react range was bumped alongside this change (see package.json) —
 // run `npm install` after pulling this in so the installed version actually
@@ -2201,10 +2201,11 @@ function EliteUpgradeInline({ onUpgrade }: { onUpgrade: (code: string) => void }
 }
 
 // ── ACCOUNT PANEL (sign in / create account / sync status) ────────────────────
-function AccountPanel({ onClose, authUser, onOpenTerms }: {
+function AccountPanel({ onClose, authUser, onOpenTerms, onOpenContact }: {
   onClose: () => void;
   authUser: FirebaseUser | null;
   onOpenTerms: () => void;
+  onOpenContact: () => void;
 }) {
   const [mode, setMode] = useState<"signin" | "signup" | "reset" | "link">("signin");
   const [email, setEmail] = useState("");
@@ -2255,14 +2256,21 @@ function AccountPanel({ onClose, authUser, onOpenTerms }: {
         <div style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 14, padding: 14, marginBottom: 16 }}>
           <div style={{ fontWeight: 800, fontSize: 13, color: T.textPrimary, marginBottom: 4 }}>Subscription &amp; billing</div>
           <p style={{ fontSize: 11, color: T.textSecondary, lineHeight: 1.5, marginBottom: 10 }}>
-            Paid plans renew automatically each month via Stripe. Update your card, view invoices, or cancel your subscription anytime — no email needed, and it takes effect at the end of your current billing period.
+            Paid plans renew automatically each month via Stripe. Update your card, view invoices, or cancel your subscription anytime — it takes effect at the end of your current billing period.
           </p>
           <a href={STRIPE_CUSTOMER_PORTAL_URL} target="_blank" rel="noopener noreferrer"
             style={{ width: "100%", boxSizing: "border-box", padding: 12, borderRadius: 10, background: T.textPrimary, color: T.bg, fontWeight: 800, fontSize: 12, border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, textDecoration: "none", marginBottom: 8 }}>
             Manage or cancel my subscription <ExternalLink size={13} />
           </a>
-          <button onClick={onOpenTerms} style={{ width: "100%", background: "none", border: "none", cursor: "pointer", fontSize: 11, color: T.textMuted, display: "flex", alignItems: "center", justifyContent: "center", gap: 5, padding: "2px 0" }}>
+          <p style={{ fontSize: 10, color: T.textMuted, lineHeight: 1.6, marginTop: 2, marginBottom: 10 }}>
+            You'll be asked for <strong style={{ color: T.textSecondary }}>the email address you checked out with</strong> — Stripe emails a one-time login link there, no password needed. Worth saving that email somewhere safe. Lost access to it?{" "}
+            <button onClick={onOpenContact} style={{ background: "none", border: "none", padding: 0, cursor: "pointer", color: T.neon, fontWeight: 700, fontSize: 10, textDecoration: "underline" }}>Contact us</button> and we'll cancel it for you.
+          </p>
+          <button onClick={onOpenTerms} style={{ width: "100%", background: "none", border: "none", cursor: "pointer", fontSize: 11, color: T.textMuted, display: "flex", alignItems: "center", justifyContent: "center", gap: 5, padding: "2px 0", marginBottom: 4 }}>
             <FileText size={12} /> View Terms of Service
+          </button>
+          <button onClick={onOpenContact} style={{ width: "100%", background: "none", border: "none", cursor: "pointer", fontSize: 11, color: T.textMuted, display: "flex", alignItems: "center", justifyContent: "center", gap: 5, padding: "2px 0" }}>
+            <Mail size={12} /> Contact us
           </button>
         </div>
         {!cloudSyncConfigured ? (
@@ -2341,18 +2349,19 @@ function getTermsOfServiceSections(): { title: string; body: string }[] {
   return [
     { title: "Subscriptions & billing", body: `Comeback offers two paid, recurring monthly subscription plans — Pro ($9.99/mo) and Elite ($28.99/mo) — billed in advance through our payment processor, Stripe. By starting a subscription you authorize Comeback to charge your payment method automatically, on the same date each month, until you cancel.` },
     { title: "Automatic renewal", body: "All subscriptions renew automatically at the end of each billing period — you do not need to take any action for your plan to continue. We (via Stripe) send a reminder email in the days before each renewal so a charge is never a surprise. You can cancel at any time before a renewal date to avoid being charged for the next period." },
-    { title: "How to cancel", body: "You can cancel your subscription yourself at any time, with no phone call and no email required, from the \"Manage or cancel my subscription\" link in your Account panel — this opens Stripe's secure Customer Portal where cancellation takes one click. Cancellation takes effect at the end of your current paid billing period; you keep access through the period you already paid for, and you will not be charged again after that." },
+    { title: "How to cancel", body: "You can cancel your subscription yourself at any time, with no phone call required, from the \"Manage or cancel my subscription\" link in your Account panel — this opens Stripe's secure Customer Portal where cancellation takes one click. Cancellation takes effect at the end of your current paid billing period; you keep access through the period you already paid for, and you will not be charged again after that." },
+    { title: "Remember the email you checked out with", body: "The Customer Portal identifies you by the email address you used at checkout — Stripe sends a one-time login link there, no password required. Save that email somewhere you won't lose it. If you no longer have access to that inbox, contact us (see Contact below) with your name and a way to verify you're the account holder, and we'll cancel your subscription for you directly from our side." },
     { title: "Refunds", body: "Charges already processed are generally non-refundable, except where required by law or where Comeback agrees to a refund at its discretion (for example, a clear billing error). Cancelling stops future charges but does not itself refund the current period." },
     { title: "Free trial", body: "Elite's 12-hour free trial requires no card and automatically ends after 12 hours — it does not convert into a paid subscription on its own and will never result in a charge unless you separately choose to subscribe. Each account is eligible for one free trial." },
     { title: "License keys & access", body: "After checkout, Stripe/Comeback issues a license key by email that unlocks the app on your device(s). Keep this key — you may be asked to re-enter it if you reinstall the app or sign in on a new device. Access to paid features is tied to an active subscription; if a subscription lapses or is cancelled, paid features lock at the end of that billing period." },
     { title: "Rewards program", body: "Comeback Coins and the gift-card rewards program have their own additional terms — including that cancelling or being refunded before completing your program forfeits that program's reward — presented and electronically signed separately at the time you claim a reward. See the Rewards tab for full details." },
     { title: "Not medical advice", body: "Comeback is a coaching and habit-tracking tool, not a medical provider. Nothing in the app is medical advice, diagnosis, or treatment. Always get examined and cleared by a licensed physician before and throughout any recovery program." },
     { title: "Changes to these terms", body: "Comeback may update these terms from time to time as the app or its billing practices change. Continued use of the app after an update constitutes acceptance of the revised terms." },
-    { title: "Contact", body: `Questions about your subscription or billing? Reach the Comeback team directly at ${CURTIS_CONTACT.phone} or ${CURTIS_CONTACT.email}.` },
+    { title: "Contact", body: `Questions about your subscription or billing, or lost access to the email tied to your subscription? Reach the Comeback team directly at ${CURTIS_CONTACT.phone} or ${CURTIS_CONTACT.email} and we'll help — including cancelling on your behalf if needed.` },
     { title: "Not a substitute for legal advice", body: "This page is a good-faith, plain-language summary of how billing, renewal, and cancellation actually work in this app — it is not a formal legal document drafted or reviewed by an attorney. Comeback recommends having these terms reviewed by a licensed attorney in your jurisdiction before relying on them as a binding legal contract." },
   ];
 }
-function TermsOfServicePanel({ onClose }: { onClose: () => void }) {
+function TermsOfServicePanel({ onClose, onOpenContact }: { onClose: () => void; onOpenContact: () => void }) {
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "flex-end", justifyContent: "center", zIndex: 220 }} onClick={onClose}>
       <div onClick={e => e.stopPropagation()} style={{ width: "100%", maxWidth: 430, background: T.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: "20px 20px calc(24px + env(safe-area-inset-bottom,0px))", maxHeight: "85vh", overflowY: "auto", boxSizing: "border-box" }}>
@@ -2370,9 +2379,54 @@ function TermsOfServicePanel({ onClose }: { onClose: () => void }) {
           </div>
         ))}
         <a href={STRIPE_CUSTOMER_PORTAL_URL} target="_blank" rel="noopener noreferrer"
-          style={{ width: "100%", boxSizing: "border-box", padding: 13, borderRadius: 12, background: T.neon, color: T.bg, fontWeight: 800, fontSize: 13, border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, textDecoration: "none", boxShadow: shadow.neon, marginTop: 4 }}>
+          style={{ width: "100%", boxSizing: "border-box", padding: 13, borderRadius: 12, background: T.neon, color: T.bg, fontWeight: 800, fontSize: 13, border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, textDecoration: "none", boxShadow: shadow.neon, marginTop: 4, marginBottom: 8 }}>
           Manage or cancel my subscription <ExternalLink size={14} />
         </a>
+        <button onClick={onOpenContact} style={{ width: "100%", boxSizing: "border-box", padding: 12, borderRadius: 12, background: "transparent", border: `1.5px solid ${T.border}`, color: T.textSecondary, fontWeight: 700, fontSize: 12, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+          <Mail size={13} /> Lost your checkout email? Contact us
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ── CONTACT ─────────────────────────────────────────────────────────────────
+// A dedicated, always-reachable fallback for anyone who can't self-serve
+// through the Stripe Customer Portal — most commonly someone who's lost
+// access to the email address they checked out with, since that's the only
+// thing the portal's login link authenticates against. Surfaced from the
+// Account panel and the Terms of Service panel.
+function ContactPanel({ onClose }: { onClose: () => void }) {
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "flex-end", justifyContent: "center", zIndex: 230 }} onClick={onClose}>
+      <div onClick={e => e.stopPropagation()} style={{ width: "100%", maxWidth: 430, background: T.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: "20px 20px calc(24px + env(safe-area-inset-bottom,0px))", maxHeight: "85vh", overflowY: "auto", boxSizing: "border-box" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+          <div style={{ fontWeight: 900, fontSize: 18, color: T.textPrimary }}>Contact us</div>
+          <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: T.textMuted }}><X size={20} /></button>
+        </div>
+        <p style={{ fontSize: 12, color: T.textSecondary, lineHeight: 1.6, marginBottom: 16 }}>
+          Billing questions, help claiming a reward, or anything else — reach the Comeback team directly.
+        </p>
+        <a href={`tel:${CURTIS_CONTACT.phone}`} style={{ display: "flex", alignItems: "center", gap: 10, background: T.card, border: `1.5px solid ${T.border}`, borderRadius: 12, padding: "13px 14px", marginBottom: 10, textDecoration: "none" }}>
+          <div style={{ width: 34, height: 34, borderRadius: 17, background: T.neonL, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><Phone size={16} color={T.neon} /></div>
+          <div>
+            <div style={{ fontSize: 10, color: T.textMuted, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.4px" }}>Call or text</div>
+            <div style={{ fontSize: 14, color: T.textPrimary, fontWeight: 800 }}>{CURTIS_CONTACT.phone}</div>
+          </div>
+        </a>
+        <a href={`mailto:${CURTIS_CONTACT.email}`} style={{ display: "flex", alignItems: "center", gap: 10, background: T.card, border: `1.5px solid ${T.border}`, borderRadius: 12, padding: "13px 14px", marginBottom: 16, textDecoration: "none" }}>
+          <div style={{ width: 34, height: 34, borderRadius: 17, background: T.neonL, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><Mail size={16} color={T.neon} /></div>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: 10, color: T.textMuted, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.4px" }}>Email</div>
+            <div style={{ fontSize: 14, color: T.textPrimary, fontWeight: 800, wordBreak: "break-all" }}>{CURTIS_CONTACT.email}</div>
+          </div>
+        </a>
+        <div style={{ background: T.neonL, border: `1px solid ${T.neon}40`, borderRadius: 14, padding: 14 }}>
+          <div style={{ fontWeight: 800, fontSize: 12, color: T.textPrimary, marginBottom: 6 }}>🔒 Lost access to the email you checked out with?</div>
+          <p style={{ fontSize: 12, color: T.textSecondary, lineHeight: 1.6, margin: 0 }}>
+            The Stripe Customer Portal only logs you in via that email, so if it's gone, self-service cancellation won't work. Call or email us with your name and something that verifies you're the account holder — the email or phone associated with your order, or the last 4 digits of the card you paid with — and we'll cancel your subscription for you directly.
+          </p>
+        </div>
       </div>
     </div>
   );
@@ -3943,6 +3997,7 @@ export default function App() {
   const [pendingPlan, setPendingPlan] = useState<{ plan: "pro" | "elite" | "trial"; code: string } | null>(null);
   const [showAccount, setShowAccount] = useState(false);
   const [showTerms, setShowTerms] = useState(false);
+  const [showContact, setShowContact] = useState(false);
   const [authUser, setAuthUser] = useState<FirebaseUser | null>(null);
   const lastSyncedUidRef = useRef<string | null>(null);
 
@@ -4111,10 +4166,13 @@ export default function App() {
         </>
       )}
       {showAccount && (
-        <AccountPanel onClose={() => setShowAccount(false)} authUser={authUser} onOpenTerms={() => setShowTerms(true)} />
+        <AccountPanel onClose={() => setShowAccount(false)} authUser={authUser} onOpenTerms={() => setShowTerms(true)} onOpenContact={() => setShowContact(true)} />
       )}
       {showTerms && (
-        <TermsOfServicePanel onClose={() => setShowTerms(false)} />
+        <TermsOfServicePanel onClose={() => setShowTerms(false)} onOpenContact={() => setShowContact(true)} />
+      )}
+      {showContact && (
+        <ContactPanel onClose={() => setShowContact(false)} />
       )}
     </div>
   );
