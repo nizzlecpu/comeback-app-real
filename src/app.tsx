@@ -885,18 +885,60 @@ const DIARY_PROMPTS = [
 // This is the single source of truth for reward brands: GIFT_CARD_BRANDS
 // (the flat list the claim-flow buttons read from) is derived directly from
 // it below, so the two can never drift apart.
-const GIFT_CARD_CATALOG: { brand: string; emoji: string; category: string }[] = [
-  { brand: "Nike", emoji: "👟", category: "Gear Up" },
-  { brand: "Adidas", emoji: "🏃", category: "Gear Up" },
-  { brand: "Under Armour", emoji: "🎽", category: "Gear Up" },
-  { brand: "Dick's Sporting Goods", emoji: "🏈", category: "Gear Up" },
-  { brand: "GNC", emoji: "💊", category: "Fuel Your Recovery" },
-  { brand: "Chipotle", emoji: "🌯", category: "Fuel Your Recovery" },
-  { brand: "Smoothie King", emoji: "🥤", category: "Fuel Your Recovery" },
-  { brand: "Starbucks", emoji: "☕", category: "Fuel Your Recovery" },
-  { brand: "Amazon", emoji: "📦", category: "Flexible" },
+// `logoSlug` points at the brand's real mark on Simple Icons (simpleicons.org
+// — an open-source, freely-licensed catalog of brand marks built for exactly
+// this "identify the real company" use case), loaded straight from their CDN
+// so no logo artwork has to be vendored or redrawn by hand here. Only brands
+// that actually have an entry in that catalog get one — Simple Icons doesn't
+// carry every regional retail/restaurant chain, so the rest fall back to
+// `monoColor`, a clean monogram badge in that brand's real, publicly known
+// color instead of an unrelated emoji. `emoji` is kept only as the very last
+// fallback if a logo image ever fails to load at runtime (see BrandLogo).
+const GIFT_CARD_CATALOG: { brand: string; emoji: string; category: string; logoSlug?: string; monoColor?: string }[] = [
+  { brand: "Nike", emoji: "👟", category: "Gear Up", logoSlug: "nike" },
+  { brand: "Adidas", emoji: "🏃", category: "Gear Up", logoSlug: "adidas" },
+  { brand: "Under Armour", emoji: "🎽", category: "Gear Up", logoSlug: "underarmour" },
+  { brand: "Dick's Sporting Goods", emoji: "🏈", category: "Gear Up", monoColor: "#003DA5" },
+  { brand: "GNC", emoji: "💊", category: "Fuel Your Recovery", monoColor: "#00857C" },
+  { brand: "Chipotle", emoji: "🌯", category: "Fuel Your Recovery", monoColor: "#A81612" },
+  { brand: "Smoothie King", emoji: "🥤", category: "Fuel Your Recovery", monoColor: "#ED1B34" },
+  { brand: "Starbucks", emoji: "☕", category: "Fuel Your Recovery", logoSlug: "starbucks" },
+  { brand: "Amazon", emoji: "📦", category: "Flexible", logoSlug: "amazon" },
 ];
 const GIFT_CARD_BRANDS = GIFT_CARD_CATALOG.map(c => c.brand);
+// Renders a real brand mark for the reward catalog instead of a generic
+// emoji — a proper logo (or, where one isn't available, a clean colored
+// monogram) reads as a genuine retail catalog rather than a placeholder
+// mockup. Logos load from Simple Icons' public CDN at runtime (no artwork
+// vendored into this codebase), sitting on a white tile since most of those
+// source files are solid black/monochrome and this app's theme is dark —
+// without a light backing, a black logo would just disappear. If the image
+// ever fails to load (offline, CDN hiccup, ad-blocker), it quietly falls
+// back to the monogram/emoji rather than showing a broken-image icon.
+function BrandLogo({ item, size = 40 }: { item: { brand: string; emoji: string; logoSlug?: string; monoColor?: string }; size?: number }) {
+  const [imgFailed, setImgFailed] = useState(false);
+  if (item.logoSlug && !imgFailed) {
+    return (
+      <div style={{ width: size, height: size, borderRadius: 10, background: "#FFFFFF", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, padding: Math.round(size * 0.16), boxSizing: "border-box" }}>
+        <img
+          src={`https://cdn.jsdelivr.net/npm/simple-icons@latest/icons/${item.logoSlug}.svg`}
+          alt={`${item.brand} logo`}
+          onError={() => setImgFailed(true)}
+          style={{ width: "100%", height: "100%", objectFit: "contain", display: "block" }}
+        />
+      </div>
+    );
+  }
+  if (item.monoColor) {
+    const initials = item.brand.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase();
+    return (
+      <div style={{ width: size, height: size, borderRadius: 10, background: item.monoColor, display: "flex", alignItems: "center", justifyContent: "center", fontSize: Math.round(size * 0.36), fontWeight: 900, color: "#fff", flexShrink: 0 }}>
+        {initials}
+      </div>
+    );
+  }
+  return <span style={{ fontSize: Math.round(size * 0.6) }}>{item.emoji}</span>;
+}
 const PRO_MONTHLY_PRICE = 9.99;
 const ELITE_MONTHLY_PRICE = 28.99;
 // Conservative placeholder for what a "Comeback" branded tee actually costs
@@ -961,13 +1003,24 @@ function getRewardTier(plan: "pro" | "elite" | "trial", totalRecoveryDays: numbe
 //   Full supplement schedule completed           | 10   |  ✓  |  ✓
 //   Max possible per day                         |      | 50  | 60
 //
-// Tier math, done to keep this reachable by an "average" user who does some
-// of these things consistently rather than every single one every day:
-//   >= 80% of max possible coins over the whole program → top tier (index 3)
+// Tier math. The bottom two tiers stay reachable by an "average" user who
+// does some of these things consistently rather than every single one every
+// day — but the TOP tier is deliberately set high (90%, up from an earlier
+// 80%) so it reads as a real stretch goal, not something most engaged users
+// land on by default. The idea: an athlete should be able to see, from early
+// in their program, roughly how many more coins stand between them and the
+// best reward, and have that number pull them toward showing up consistently
+// for the rest of the program instead of coasting once tier 2 feels safe.
+//   >= 90% of max possible coins over the whole program → top tier (index 3)
 //   >= 55%                                              → tier 2
 //   >= 30%                                              → tier 1
 //   anything less (including 0)                          → tier 0 (still a
 //     real reward — completing the program is what guarantees this floor)
+// Because the denominator scales per injury (see totalRecoveryDays, driven by
+// each injury's own `weeks`), 90% resolves to a different concrete coin
+// count per injury automatically — a 6-week ankle sprain and a 36-week ACL
+// tear each get their own "perfect amount to build up to," not a shared
+// number that's trivial for a long program and brutal for a short one.
 // Because the denominator (days x max-per-day-for-that-plan) scales with
 // both the program's length AND the plan's own achievable categories, this
 // holds the same for a 6-week ankle sprain and a 36-week ACL tear, and the
@@ -992,7 +1045,7 @@ function coinCategoriesForPlan(plan: "pro" | "elite" | "trial"): (keyof typeof C
 function maxCoinsPerDayForPlan(plan: "pro" | "elite" | "trial"): number {
   return coinCategoriesForPlan(plan).reduce((sum, k) => sum + COMEBACK_COINS_PER_DAY[k], 0);
 }
-const COINS_TIER_PCT_THRESHOLDS = [0, 0.30, 0.55, 0.80]; // index -> minimum % of max coins required
+const COINS_TIER_PCT_THRESHOLDS = [0, 0.30, 0.55, 0.90]; // index -> minimum % of max coins required
 // Coins earned on one specific day, from whatever's actually saved for that
 // date across completedTasks / diaryEntries / suppChecked / wordleResults.
 // Exported shape doubles as the "what it takes" breakdown shown in the UI.
@@ -2942,6 +2995,41 @@ function AppDashboard({ saved, onReset, onUpgrade, onOpenAccount, authUser }: {
                       <p style={{ fontSize: 11, color: T.textMuted, marginBottom: 10, lineHeight: 1.5 }}>
                         You receive <strong style={{ color: T.textPrimary }}>one reward</strong> — the highest tier your Comeback Coins reach by the end of your program. The tiers below show your path there, not stacked rewards — passing the ${amounts[0]} tier on your way to ${amounts[1] ?? amounts[0]} doesn't mean you get both.
                       </p>
+                      {(() => {
+                        // A single concrete number to chase, not just a percentage — this
+                        // is what "the highest achievable reward" actually resolves to for
+                        // THIS athlete's specific injury and plan, since both the coin
+                        // target (possible coins scale with program length) and the tier
+                        // ceiling itself (billingCyclesPaidByDay/cyclesSafeTierIndex — a
+                        // short program can never financially support the very top payout)
+                        // are injury-specific. Showing the real number early is the whole
+                        // point: a vague "earn more coins" doesn't pull anyone forward the
+                        // way "you need 1,166 more coins by day 240" does.
+                        const topAchievableIdx = Math.min(3, ceilingIdx) as 0 | 1 | 2 | 3;
+                        const topAchievableAmt = amounts[topAchievableIdx];
+                        const topAchievableCoins = Math.ceil(COINS_TIER_PCT_THRESHOLDS[topAchievableIdx] * coinsInfo.possible);
+                        const alreadyThere = coinsInfo.tierIndex >= topAchievableIdx;
+                        return (
+                          <div style={{ background: T.neonL, border: `1px solid ${T.neon}50`, borderRadius: 12, padding: 12, marginBottom: 12 }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 6, fontWeight: 800, fontSize: 11, color: T.neon, marginBottom: 4 }}>
+                              🏆 {alreadyThere ? "Top reward unlocked" : "Your top reward goal"}
+                            </div>
+                            {topAchievableIdx === 0 ? (
+                              <p style={{ fontSize: 11, color: T.textSecondary, lineHeight: 1.5, margin: 0 }}>
+                                Your program length caps the reward at the ${topAchievableAmt} tier{coinsInfo.tee ? " + Comeback tee" : ""} — finishing your program guarantees it, no coin target required.
+                              </p>
+                            ) : alreadyThere ? (
+                              <p style={{ fontSize: 11, color: T.textSecondary, lineHeight: 1.5, margin: 0 }}>
+                                You've already banked enough Comeback Coins for the best reward your {injury?.label.toLowerCase() || "recovery"} program can pay out — a ${topAchievableAmt} gift card{coinsInfo.tee ? " + Comeback tee" : ""}. Keep showing up to hold onto it through the finish line.
+                              </p>
+                            ) : (
+                              <p style={{ fontSize: 11, color: T.textSecondary, lineHeight: 1.5, margin: 0 }}>
+                                Build up to <strong style={{ color: T.textPrimary }}>{topAchievableCoins} Comeback Coins</strong> by the end of your program — the perfect amount to unlock the best reward available on your {injury?.label.toLowerCase() || "recovery"} plan: a ${topAchievableAmt} gift card{coinsInfo.tee ? " + Comeback tee" : ""}.
+                              </p>
+                            )}
+                          </div>
+                        );
+                      })()}
                       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                         {amounts.map((amt, i) => {
                           const tierLabel = `$${amt} gift card${coinsInfo.tee ? " + Comeback tee" : ""}`;
@@ -2999,7 +3087,7 @@ function AppDashboard({ saved, onReset, onUpgrade, onOpenAccount, authUser }: {
                           {itemUnlocked && rewardClaim && (
                             <div style={{ position: "absolute", top: 6, right: 6 }}><Check size={11} color={T.neon} /></div>
                           )}
-                          <span style={{ fontSize: 22 }}>{item.emoji}</span>
+                          <BrandLogo item={item} size={40} />
                           <span style={{ fontSize: 11, fontWeight: 800, color: itemUnlocked ? T.textPrimary : T.textSecondary, textAlign: "center" }}>{item.brand}</span>
                           <span style={{ fontSize: 9, color: T.textMuted, textTransform: "uppercase", letterSpacing: "0.4px" }}>{item.category}</span>
                         </div>
