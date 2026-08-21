@@ -138,7 +138,10 @@ interface SavedState {
   // this gates on. rewardsConsent is set once the user checks the single
   // "I understand and agree" box; rewardClaim is set once they pick a gift
   // card brand and claim, and is permanent (claiming again just re-shows it).
-  rewardsConsent?: { agreedAt: string } | null;
+  // signatureName is the athlete's typed full legal name, captured at the
+  // same moment as agreedAt — this is the electronic signature on the
+  // rewards contract (see REWARDS_CONTRACT_SECTIONS + the Rewards tab).
+  rewardsConsent?: { agreedAt: string; signatureName: string } | null;
   rewardClaim?: { claimedAt: string; giftCardAmount: number; tee: boolean; brand: string } | null;
   plan: "pro" | "elite" | "trial";
   licenseCode: string;
@@ -273,7 +276,6 @@ const PRO_FEATURES = [
   "Daily task tracking with streaks and milestones",
   "Personalized calorie and macro targets set up front, with concrete serving guidance (real foods, real portions) scaled to your height and weight",
   "Comeback Coins — earn them every day for showing up, and unlock real reward tiers (gift cards) as they add up over your program",
-  "Daily Journal with guided prompts to track how you're actually doing, mentally and physically",
   "A daily sports-themed Wordle brain game",
   "Sport squad community — post, reply, connect, with real replies from teammates",
   "Curtis, your AI recovery assistant, for questions any time",
@@ -282,6 +284,7 @@ const PRO_FEATURES = [
 const ELITE_FEATURES = [
   "Everything in Pro, plus:",
   "Recovery Score — a live 1–100 score with a needle that moves as you improve, built from your real task completion and how well your calories match your target",
+  "Daily Journal with guided prompts to track how you're actually doing, mentally and physically — and its own Comeback Coins category on top of Pro's",
   "Full daily food + exercise log — track every meal and workout, MyFitnessPal-style, and watch your score respond",
   "Bigger reward tiers — higher gift card amounts than Pro at every tier, plus a Comeback tee included",
   "Priority support",
@@ -856,7 +859,40 @@ const DIARY_PROMPTS = [
 // event types and write a revocation record somewhere this app (or whoever
 // fulfills claims) can check — worth doing before real money changes hands
 // at any scale, and flagged here rather than presented as already solved.
-const GIFT_CARD_BRANDS = ["Amazon", "Target", "Best Buy", "Nike", "Dick's Sporting Goods", "Visa"];
+// Deliberately curated, not just "popular gift cards" — every brand here
+// has to pass two filters:
+//   1. Fit the reward math. Payouts are $10-$25 (Pro) / $20-$50 (Elite) —
+//      see PRO_TIER_AMOUNTS/ELITE_TIER_AMOUNTS above. A brand where that
+//      range buys nothing meaningful (e.g. a $2,000+ bike/equipment brand,
+//      or a $40+/mo subscription) is a bad fit even if it's popular, because
+//      the reward would land as a token gesture instead of something
+//      genuinely usable. Everything below is comfortably spendable at these
+//      amounts — a full meal, a pair of socks toward new shoes, a
+//      supplement restock, real progress toward gear.
+//   2. Fit what Comeback is actually for. This app exists to get injured
+//      athletes back to training — disciplined, faith-encouraged, recovery
+//      and nutrition focused (see MILESTONES' verses and the whole Coins/
+//      Journal/nutrition system above). The reward for finishing that
+//      journey should reinforce it, not hand someone a couch-and-streaming
+//      prize that cuts against the whole point of the program. So this list
+//      leans sportswear/gear, supplements/recovery, and real food fueling —
+//      plus one flexible, brand-neutral option since a reward that can ONLY
+//      be spent narrowly is its own kind of frustrating.
+// This is the single source of truth for reward brands: GIFT_CARD_BRANDS
+// (the flat list the claim-flow buttons read from) is derived directly from
+// it below, so the two can never drift apart.
+const GIFT_CARD_CATALOG: { brand: string; emoji: string; category: string }[] = [
+  { brand: "Nike", emoji: "👟", category: "Gear Up" },
+  { brand: "Adidas", emoji: "🏃", category: "Gear Up" },
+  { brand: "Under Armour", emoji: "🎽", category: "Gear Up" },
+  { brand: "Dick's Sporting Goods", emoji: "🏈", category: "Gear Up" },
+  { brand: "GNC", emoji: "💊", category: "Fuel Your Recovery" },
+  { brand: "Chipotle", emoji: "🌯", category: "Fuel Your Recovery" },
+  { brand: "Smoothie King", emoji: "🥤", category: "Fuel Your Recovery" },
+  { brand: "Starbucks", emoji: "☕", category: "Fuel Your Recovery" },
+  { brand: "Amazon", emoji: "📦", category: "Flexible" },
+];
+const GIFT_CARD_BRANDS = GIFT_CARD_CATALOG.map(c => c.brand);
 const PRO_MONTHLY_PRICE = 9.99;
 const ELITE_MONTHLY_PRICE = 28.99;
 // Conservative placeholder for what a "Comeback" branded tee actually costs
@@ -901,22 +937,25 @@ function getRewardTier(plan: "pro" | "elite" | "trial", totalRecoveryDays: numbe
 // ── COMEBACK COINS ───────────────────────────────────────────────────────────
 // The engagement layer on top of the financial ceiling above. Nowhere does
 // the app say "you must complete every single day perfectly to get a
-// reward" — instead, six everyday actions each earn a set number of
-// Comeback Coins for that day, they add up across the whole recovery
-// program, and the total (as a % of every coins that COULD have been
-// earned) decides which of the same four tiers above the user actually
-// qualifies for. Finishing the full program at all always guarantees the
-// bottom tier (index 0) regardless of coins earned — coins are what move
-// someone UP from there, not a gate that can leave a finisher with nothing.
+// reward" — instead, everyday actions each earn a set number of Comeback
+// Coins for that day, they add up across the whole recovery program, and the
+// total (as a % of every coin that COULD have been earned) decides which of
+// the same four tiers above the user actually qualifies for. Finishing the
+// full program at all always guarantees the bottom tier (index 0) regardless
+// of coins earned — coins are what move someone UP from there, not a gate
+// that can leave a finisher with nothing.
 //
-//   Action (per day)                          | Coins
-//   Journal entry completed                    | 10
-//   Daily task-completion score of 70 or higher | 10
-//   Full day of protocol tasks completed (100%) | 10
-//   Daily streak maintained                     | 10
-//   Wordle solved that day, no failed attempt    | 10
-//   Full supplement schedule completed           | 10
-//   Max possible per day                         | 60
+//   Action (per day)                          | Coins | Pro | Elite
+//   Journal entry completed                    | 10   |  —  |  ✓   (Journal is an Elite-only feature — see "── Diary (Elite) ──"
+//                                                                    below — so it's physically impossible for a Pro athlete to
+//                                                                    earn this one. It must NOT count toward Pro's max-possible
+//                                                                    coins, or Pro would be chasing a ceiling it can never reach.)
+//   Daily task-completion score of 70 or higher | 10   |  ✓  |  ✓
+//   Full day of protocol tasks completed (100%) | 10   |  ✓  |  ✓
+//   Daily streak maintained                     | 10   |  ✓  |  ✓
+//   Wordle solved that day, no failed attempt    | 10   |  ✓  |  ✓
+//   Full supplement schedule completed           | 10   |  ✓  |  ✓
+//   Max possible per day                         |      | 50  | 60
 //
 // Tier math, done to keep this reachable by an "average" user who does some
 // of these things consistently rather than every single one every day:
@@ -925,24 +964,40 @@ function getRewardTier(plan: "pro" | "elite" | "trial", totalRecoveryDays: numbe
 //   >= 30%                                              → tier 1
 //   anything less (including 0)                          → tier 0 (still a
 //     real reward — completing the program is what guarantees this floor)
-// Because the denominator (days x 60) scales with the program's own length,
-// this holds the same for a 6-week ankle sprain and a 36-week ACL tear —
-// it's always about the % of days you showed up and did real work, not a
-// fixed coins number that's easier for short programs and brutal for long
-// ones.
-// Evenly weighted on purpose: 10 coins per category, 6 categories, 60/day max.
-// Earlier version leaned on task-completion alone (score+dayComplete = 30/60,
-// half the daily total) which made it possible to max coins out by just
-// checking off tasks and skipping the Journal, Wordle, and supplements
-// features entirely. Spreading it evenly means every app feature has to
-// actually get used to hit the max — no single shortcut dominates.
+// Because the denominator (days x max-per-day-for-that-plan) scales with
+// both the program's length AND the plan's own achievable categories, this
+// holds the same for a 6-week ankle sprain and a 36-week ACL tear, and the
+// same for a Pro athlete (5 categories) as an Elite athlete (6) — it's
+// always about the % of days you showed up and did real work THAT YOU
+// ACTUALLY HAD ACCESS TO, never a ceiling padded with a feature your plan
+// doesn't include.
+// Evenly weighted on purpose: 10 coins per category. Earlier version leaned
+// on task-completion alone (score+dayComplete = half the daily total) which
+// made it possible to max coins out by just checking off tasks and skipping
+// Journal, Wordle, and supplements entirely. Spreading it evenly means every
+// feature the athlete's plan actually includes has to get used to hit the
+// max — no single shortcut dominates.
 const COMEBACK_COINS_PER_DAY = { journal: 10, score: 10, dayComplete: 10, streak: 10, wordle: 10, supplements: 10 };
-const COMEBACK_COINS_MAX_PER_DAY = Object.values(COMEBACK_COINS_PER_DAY).reduce((a, b) => a + b, 0); // 60
+// Which of the categories above a given plan can actually earn — this is the
+// single source of truth both the coin math AND the Rewards-tab checklist
+// read from, so the two can never drift out of sync with each other again.
+function coinCategoriesForPlan(plan: "pro" | "elite" | "trial"): (keyof typeof COMEBACK_COINS_PER_DAY)[] {
+  const base: (keyof typeof COMEBACK_COINS_PER_DAY)[] = ["score", "dayComplete", "streak", "wordle", "supplements"];
+  return plan === "elite" ? ["journal", ...base] : base; // Pro/trial: no Journal tab, so no Journal coins
+}
+function maxCoinsPerDayForPlan(plan: "pro" | "elite" | "trial"): number {
+  return coinCategoriesForPlan(plan).reduce((sum, k) => sum + COMEBACK_COINS_PER_DAY[k], 0);
+}
 const COINS_TIER_PCT_THRESHOLDS = [0, 0.30, 0.55, 0.80]; // index -> minimum % of max coins required
 // Coins earned on one specific day, from whatever's actually saved for that
 // date across completedTasks / diaryEntries / suppChecked / wordleResults.
 // Exported shape doubles as the "what it takes" breakdown shown in the UI.
-function dailyCoinsBreakdown(saved: SavedState, dateKey: string, dayNum: number): {
+// `journal` is still reported as a boolean (Elite's Journal streak logic and
+// UI checklist both want to know whether it happened), but `total` only
+// includes its 10 coins when the plan can actually earn them (see
+// coinCategoriesForPlan) — that's the fix for Pro's max-possible coins
+// otherwise counting a feature Pro athletes can't access.
+function dailyCoinsBreakdown(saved: SavedState, dateKey: string, dayNum: number, plan: "pro" | "elite" | "trial" = "elite"): {
   journal: boolean; score: boolean; dayComplete: boolean; streak: boolean; wordle: boolean; supplements: boolean; total: number;
 } {
   const expectedTasks = DAY_PROTOCOLS[dayNum % DAY_PROTOCOLS.length]?.length || 0;
@@ -964,26 +1019,29 @@ function dailyCoinsBreakdown(saved: SavedState, dateKey: string, dayNum: number)
   // signal of "showed up," but isn't literally the same check as the live
   // streak logic elsewhere in the app.
   const streak = journal || dayComplete || doneCountDay > 0 || supplements || !!wr;
+  const eligible = new Set(coinCategoriesForPlan(plan));
   let total = 0;
-  if (journal) total += COMEBACK_COINS_PER_DAY.journal;
-  if (score) total += COMEBACK_COINS_PER_DAY.score;
-  if (dayComplete) total += COMEBACK_COINS_PER_DAY.dayComplete;
-  if (streak) total += COMEBACK_COINS_PER_DAY.streak;
-  if (wordle) total += COMEBACK_COINS_PER_DAY.wordle;
-  if (supplements) total += COMEBACK_COINS_PER_DAY.supplements;
+  if (journal && eligible.has("journal")) total += COMEBACK_COINS_PER_DAY.journal;
+  if (score && eligible.has("score")) total += COMEBACK_COINS_PER_DAY.score;
+  if (dayComplete && eligible.has("dayComplete")) total += COMEBACK_COINS_PER_DAY.dayComplete;
+  if (streak && eligible.has("streak")) total += COMEBACK_COINS_PER_DAY.streak;
+  if (wordle && eligible.has("wordle")) total += COMEBACK_COINS_PER_DAY.wordle;
+  if (supplements && eligible.has("supplements")) total += COMEBACK_COINS_PER_DAY.supplements;
   return { journal, score, dayComplete, streak, wordle, supplements, total };
 }
 // Sums coins across every day of the program (past days that have data,
 // future days count 0 since nothing's logged for them yet) — this is the
-// number the reward tier is ultimately based on.
-function computeComebackCoinsTotal(saved: SavedState, totalRecoveryDays: number): { earned: number; possible: number; pct: number } {
+// number the reward tier is ultimately based on. `possible` is scaled to
+// the plan's own max-per-day so Pro is never measured against a Journal
+// ceiling it can't reach.
+function computeComebackCoinsTotal(saved: SavedState, totalRecoveryDays: number, plan: "pro" | "elite" | "trial" = "elite"): { earned: number; possible: number; pct: number } {
   let earned = 0;
   const days = Math.max(1, totalRecoveryDays);
   for (let i = 0; i < days; i++) {
     const dateKey = offsetDateStr(saved.startDate, i);
-    earned += dailyCoinsBreakdown(saved, dateKey, i + 1).total;
+    earned += dailyCoinsBreakdown(saved, dateKey, i + 1, plan).total;
   }
-  const possible = days * COMEBACK_COINS_MAX_PER_DAY;
+  const possible = days * maxCoinsPerDayForPlan(plan);
   return { earned, possible, pct: possible > 0 ? earned / possible : 0 };
 }
 function coinsTierIndexFromPct(pct: number): 0 | 1 | 2 | 3 {
@@ -1000,7 +1058,7 @@ function comebackCoinsInfo(saved: SavedState, totalRecoveryDays: number, plan: "
   nextTierIndex: number | null; nextAmount: number | null; coinsNeededForNext: number;
 } | null {
   if (plan === "trial") return null;
-  const { earned, possible, pct } = computeComebackCoinsTotal(saved, totalRecoveryDays);
+  const { earned, possible, pct } = computeComebackCoinsTotal(saved, totalRecoveryDays, plan);
   const ceilingIdx = cyclesSafeTierIndex(totalRecoveryDays);
   const coinsIdx = coinsTierIndexFromPct(pct);
   const tierIndex = Math.min(ceilingIdx, coinsIdx);
@@ -1016,14 +1074,24 @@ function comebackCoinsInfo(saved: SavedState, totalRecoveryDays: number, plan: "
     nextTierIndex, nextAmount, coinsNeededForNext,
   };
 }
-const REWARDS_CONTRACT_SECTIONS: { title: string; body: string }[] = [
-  { title: "How it unlocks", body: "Your reward becomes claimable once you reach the very last day of your full recovery program. You don't have to complete every single day perfectly to get something — but which reward tier you land in depends on the Comeback Coins you earned along the way (see below)." },
-  { title: "How Comeback Coins decide your tier", body: "Every day you complete your Journal, hit a daily task score of 70+, finish 100% of that day's tasks, maintain your streak, solve the daily Wordle, and finish your supplement schedule, you earn Comeback Coins. Add those up across your whole program and the percentage of the total possible you earned decides your tier — finishing the program always guarantees the base tier no matter what, and consistent effort moves you up from there." },
-  { title: "Cancellations & refunds", body: "If your subscription is canceled or any payment on it is refunded at any point, you forfeit the reward entirely for that program — no gift card, no apparel — even if you'd already completed some or all of the days." },
-  { title: "One reward per completed program", body: "Rewards are tied to a single completed recovery program per subscription. Once you pick a gift card brand and claim your reward, that choice is final." },
-  { title: "Photo & story consent", body: "By checking the box below, you consent to Comeback using your name, photo, and recovery journey (including anything you share in Journal or Squad) in Comeback's marketing and on social media, without additional compensation. This consent applies regardless of your age." },
-  { title: "Not a substitute for legal advice", body: "This is a plain-language summary of how the rewards program works, not a binding contract drafted or reviewed by a lawyer. Comeback strongly recommends getting a real rewards-program and likeness-consent agreement reviewed by an attorney before real money or merchandise is on the line, especially since anyone of any age can take part." },
-];
+// A function of plan (not a flat constant) because which everyday actions
+// earn Comeback Coins genuinely differs by plan — Pro doesn't have the
+// Journal tab, so its contract copy has to say that correctly rather than
+// promising a category Pro athletes can't physically complete.
+function getRewardsContractSections(plan: "pro" | "elite" | "trial"): { title: string; body: string }[] {
+  const categories = plan === "elite"
+    ? "complete your Journal, hit a daily task score of 70+, finish 100% of that day's tasks, maintain your streak, solve the daily Wordle, and finish your supplement schedule"
+    : "hit a daily task score of 70+, finish 100% of that day's tasks, maintain your streak, solve the daily Wordle, and finish your supplement schedule"; // Pro: no Journal tab, so no Journal category
+  return [
+    { title: "Gift card requires completed tasks and completed days", body: "This is the core rule of the rewards program, stated plainly: your gift card is earned by completing your assigned recovery tasks across the days of your program — it is not given away for signing up alone. Reaching the very last day of your full recovery program is required for any reward at all. From there, which reward tier you land in (see the tier table above) is decided by how many of your daily tasks and Comeback Coins categories you actually completed along the way, day by day. The more days you complete in full, the higher the tier you qualify for." },
+    { title: "How Comeback Coins decide your tier", body: `Every day you ${categories}, you earn Comeback Coins. Add those up across your whole program and the percentage of the total possible you earned (out of what's actually achievable on your plan) decides your tier — reaching the last day of the program always guarantees the base tier no matter what, and completing more of your tasks and days moves you up from there.` },
+    { title: "Cancellations & refunds", body: "If your subscription is canceled or any payment on it is refunded at any point, you forfeit the reward entirely for that program — no gift card, no apparel — even if you'd already completed some or all of the days." },
+    { title: "One reward per completed program", body: "Rewards are tied to a single completed recovery program per subscription. Once you pick a gift card brand and claim your reward, that choice is final." },
+    { title: "Photo & story consent", body: "By checking the box below, you consent to Comeback using your name, photo, and recovery journey (including anything you share in Journal or Squad) in Comeback's marketing and on social media, without additional compensation. This consent applies regardless of your age." },
+    { title: "Electronic signature", body: "Typing your full legal name below and pressing \"I agree\" is your electronic signature on this agreement — legally equivalent to a handwritten signature, timestamped and saved with your account at the moment you submit it." },
+    { title: "Not a substitute for legal advice", body: "This is a plain-language summary of how the rewards program works, not a binding contract drafted or reviewed by a lawyer. Comeback strongly recommends getting a real rewards-program and likeness-consent agreement reviewed by an attorney before real money or merchandise is on the line, especially since anyone of any age can take part." },
+  ];
+}
 const MILESTONES = [
   {day:1,badge:"🌱",title:"Day One",reward:"You started. That is the hardest step.",verse:"Be strong and courageous — Joshua 1:9"},
   {day:3,badge:"🔥",title:"3 Days",reward:"Resilience Badge unlocked.",verse:"I can do all things through Christ — Phil 4:13"},
@@ -2547,8 +2615,15 @@ function AppDashboard({ saved, onReset, onUpgrade, onOpenAccount, authUser }: {
   const [rewardClaim, setRewardClaim] = useState(saved.rewardClaim || null);
   const [rewardBrandDraft, setRewardBrandDraft] = useState(GIFT_CARD_BRANDS[0]);
   const [rewardsAgreeChecked, setRewardsAgreeChecked] = useState(false);
-  const agreeToRewardsContract = useCallback(() => {
-    const consent = { agreedAt: new Date().toISOString() };
+  // Electronic signature — the athlete types their full legal name here.
+  // agreeToRewardsContract refuses to run without it (see the disabled
+  // check on the button below), so a consent record can never be created
+  // with a blank/whitespace-only signature.
+  const [rewardsSignatureDraft, setRewardsSignatureDraft] = useState("");
+  const agreeToRewardsContract = useCallback((signatureName: string) => {
+    const trimmed = signatureName.trim();
+    if (!trimmed) return;
+    const consent = { agreedAt: new Date().toISOString(), signatureName: trimmed };
     setRewardsConsent(consent);
     const s = loadState();
     if (s) { s.rewardsConsent = consent; saveState(s); }
@@ -2660,8 +2735,12 @@ function AppDashboard({ saved, onReset, onUpgrade, onOpenAccount, authUser }: {
           ) : (() => {
             if (!coinsInfo) return null;
             const tier = { label: coinsInfo.label, giftCardAmount: coinsInfo.amount, tee: coinsInfo.tee };
-            const todayCoins = dailyCoinsBreakdown(liveSavedState, todayKey, dayNum);
-            const COINS_CHECKLIST: { key: keyof typeof todayCoins; icon: string; label: string; pts: number }[] = [
+            const todayCoins = dailyCoinsBreakdown(liveSavedState, todayKey, dayNum, saved.plan);
+            // Only list the categories this athlete's plan can actually earn —
+            // Pro doesn't have the Journal tab, so showing "earn 10 coins for
+            // Journal" there would dangle a reward Pro can never claim.
+            const eligibleCoinKeys = new Set(coinCategoriesForPlan(saved.plan));
+            const COINS_CHECKLIST_ALL: { key: keyof typeof todayCoins; icon: string; label: string; pts: number }[] = [
               { key: "journal", icon: "📓", label: "Complete today's Journal", pts: COMEBACK_COINS_PER_DAY.journal },
               { key: "score", icon: "📊", label: "Hit a daily score of 70+", pts: COMEBACK_COINS_PER_DAY.score },
               { key: "dayComplete", icon: "✅", label: "Finish 100% of today's tasks", pts: COMEBACK_COINS_PER_DAY.dayComplete },
@@ -2669,6 +2748,7 @@ function AppDashboard({ saved, onReset, onUpgrade, onOpenAccount, authUser }: {
               { key: "wordle", icon: "🧩", label: "Solve today's Wordle (no fails)", pts: COMEBACK_COINS_PER_DAY.wordle },
               { key: "supplements", icon: "💊", label: "Complete your supplement schedule", pts: COMEBACK_COINS_PER_DAY.supplements },
             ];
+            const COINS_CHECKLIST = COINS_CHECKLIST_ALL.filter(item => eligibleCoinKeys.has(item.key as keyof typeof COMEBACK_COINS_PER_DAY));
             return (
               <>
                 <NeonCard style={{ marginBottom: 16 }}>
@@ -2680,7 +2760,7 @@ function AppDashboard({ saved, onReset, onUpgrade, onOpenAccount, authUser }: {
                 </NeonCard>
                 <Card style={{ marginBottom: 16 }}>
                   <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
-                    <span style={{ fontSize: 12, fontWeight: 700, color: T.textPrimary }}>🪙 Comeback Coins earned</span>
+                    <span style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 700, color: T.textPrimary }}><ComebackCoin size={14} /> Comeback Coins earned</span>
                     <span style={{ fontSize: 12, fontWeight: 800, color: T.neon }}>{coinsInfo.earned} / {coinsInfo.possible}</span>
                   </div>
                   <div style={{ height: 8, borderRadius: 4, background: T.border, overflow: "hidden" }}>
@@ -2713,12 +2793,12 @@ function AppDashboard({ saved, onReset, onUpgrade, onOpenAccount, authUser }: {
                               </div>
                               <div style={{ flex: 1, minWidth: 0 }}>
                                 <div style={{ fontSize: 12, fontWeight: 800, color: unlocked ? T.textPrimary : T.textSecondary }}>{tierLabel}</div>
-                                <div style={{ fontSize: 10, color: unlocked ? T.neon : T.textMuted, fontWeight: 600 }}>
+                                <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 10, color: unlocked ? T.neon : T.textMuted, fontWeight: 600 }}>
                                   {unlocked
                                     ? (isCurrent ? "Unlocked with your coins — this is your reward right now" : "Unlocked")
                                     : cappedByProgram
                                     ? "Unlocks on a longer recovery program"
-                                    : `🪙 Earn ${neededCoins} more coins to unlock`}
+                                    : <><ComebackCoin size={11} /> Earn {neededCoins} more coins to unlock</>}
                                 </div>
                               </div>
                             </div>
@@ -2728,6 +2808,30 @@ function AppDashboard({ saved, onReset, onUpgrade, onOpenAccount, authUser }: {
                     </Card>
                   );
                 })()}
+                <Card style={{ marginBottom: 16 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: T.textPrimary, marginBottom: 4 }}>🎁 Reward catalog</div>
+                  <p style={{ fontSize: 11, color: T.textMuted, marginBottom: 10, lineHeight: 1.5 }}>
+                    {recoveryComplete
+                      ? "Your program is complete — pick your gift card brand below when you claim your reward."
+                      : "A preview of what you're working toward — every brand unlocks together once your reward becomes claimable."}
+                  </p>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
+                    {GIFT_CARD_CATALOG.map(item => (
+                      <div key={item.brand} style={{
+                        position: "relative", display: "flex", flexDirection: "column", alignItems: "center", gap: 4,
+                        padding: "12px 6px", borderRadius: 12, border: `1px solid ${T.border}`,
+                        background: recoveryComplete ? T.card : T.surface, opacity: recoveryComplete ? 1 : 0.55,
+                      }}>
+                        {!recoveryComplete && (
+                          <div style={{ position: "absolute", top: 6, right: 6 }}><Lock size={11} color={T.textMuted} /></div>
+                        )}
+                        <span style={{ fontSize: 22 }}>{item.emoji}</span>
+                        <span style={{ fontSize: 11, fontWeight: 800, color: recoveryComplete ? T.textPrimary : T.textSecondary, textAlign: "center" }}>{item.brand}</span>
+                        <span style={{ fontSize: 9, color: T.textMuted, textTransform: "uppercase", letterSpacing: "0.4px" }}>{item.category}</span>
+                      </div>
+                    ))}
+                  </div>
+                </Card>
                 <Card style={{ marginBottom: 16 }}>
                   <div style={{ fontSize: 12, fontWeight: 700, color: T.textPrimary, marginBottom: 10 }}>Today's ways to earn Comeback Coins</div>
                   <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -2768,6 +2872,11 @@ function AppDashboard({ saved, onReset, onUpgrade, onOpenAccount, authUser }: {
                     <p style={{ fontSize: 13, color: T.textSecondary, lineHeight: 1.6, marginBottom: 12 }}>
                       {rewardClaim.brand} ${rewardClaim.giftCardAmount} gift card{rewardClaim.tee ? " + Comeback tee" : ""} — claimed {new Date(rewardClaim.claimedAt).toLocaleDateString()}.
                     </p>
+                    {rewardsConsent && (
+                      <p style={{ fontSize: 10, color: T.textMuted, marginTop: -6, marginBottom: 12, fontStyle: "italic" }}>
+                        Rewards Agreement electronically signed by {rewardsConsent.signatureName} on {new Date(rewardsConsent.agreedAt).toLocaleDateString()}.
+                      </p>
+                    )}
                     <div style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 12, padding: "12px 14px", marginBottom: 10 }}>
                       <div style={{ fontWeight: 800, fontSize: 12, color: T.textPrimary, marginBottom: 6 }}>📩 One last step — email us to get it sent out</div>
                       <p style={{ fontSize: 12, color: T.textSecondary, lineHeight: 1.6, margin: 0, marginBottom: 8 }}>
@@ -2781,25 +2890,33 @@ function AppDashboard({ saved, onReset, onUpgrade, onOpenAccount, authUser }: {
                     </div>
                     <p style={{ fontSize: 11, color: T.textMuted, lineHeight: 1.6 }}>The Comeback team fulfills claims by email once that's received — reach out again to {CURTIS_CONTACT.email} if you don't hear back within a few days.</p>
                   </NeonCard>
-                ) : !rewardsConsent ? (
+                ) : !rewardsConsent ? (() => {
+                    const canSign = rewardsAgreeChecked && rewardsSignatureDraft.trim().length >= 2;
+                    return (
                   <NeonCard>
-                    <div style={{ fontWeight: 900, fontSize: 16, color: T.textPrimary, marginBottom: 10 }}>🎉 You finished your program — review your Rewards Agreement to claim it</div>
-                    {REWARDS_CONTRACT_SECTIONS.map((sec, i) => (
+                    <div style={{ fontWeight: 900, fontSize: 16, color: T.textPrimary, marginBottom: 10 }}>🎉 You finished your program — review and sign your Rewards Agreement to claim it</div>
+                    {getRewardsContractSections(saved.plan).map((sec, i) => (
                       <div key={i} style={{ marginBottom: 10 }}>
                         <div style={{ fontWeight: 800, fontSize: 12, color: T.neon, marginBottom: 2 }}>{sec.title}</div>
                         <p style={{ fontSize: 12, color: T.textSecondary, lineHeight: 1.55, margin: 0 }}>{sec.body}</p>
                       </div>
                     ))}
-                    <label style={{ display: "flex", gap: 8, alignItems: "flex-start", marginTop: 12, marginBottom: 12, cursor: "pointer" }}>
+                    <label style={{ display: "flex", gap: 8, alignItems: "flex-start", marginTop: 12, marginBottom: 14, cursor: "pointer" }}>
                       <input type="checkbox" checked={rewardsAgreeChecked} onChange={e => setRewardsAgreeChecked(e.target.checked)} style={{ marginTop: 3, flexShrink: 0, width: 16, height: 16 }} />
-                      <span style={{ fontSize: 12, color: T.textPrimary, lineHeight: 1.5 }}>I've read and understand the terms above — including that I forfeit my reward if I cancel or get refunded — and I consent to Comeback using my photo and recovery story in its marketing.</span>
+                      <span style={{ fontSize: 12, color: T.textPrimary, lineHeight: 1.5 }}>I've read and understand the terms above — including that my gift card requires the tasks and days I actually completed, and that I forfeit my reward if I cancel or get refunded — and I consent to Comeback using my photo and recovery story in its marketing.</span>
                     </label>
-                    <button onClick={agreeToRewardsContract} disabled={!rewardsAgreeChecked}
-                      style={{ width: "100%", padding: 13, borderRadius: 12, background: rewardsAgreeChecked ? T.neon : T.border, color: rewardsAgreeChecked ? T.bg : T.textMuted, fontWeight: 800, fontSize: 13, border: "none", cursor: rewardsAgreeChecked ? "pointer" : "not-allowed", boxShadow: rewardsAgreeChecked ? shadow.neon : "none" }}>
-                      I agree — continue to claim my reward
+                    <div style={{ fontSize: 11, fontWeight: 800, color: T.textPrimary, marginBottom: 6, letterSpacing: "0.3px" }}>ELECTRONIC SIGNATURE</div>
+                    <input type="text" value={rewardsSignatureDraft} onChange={e => setRewardsSignatureDraft(e.target.value)}
+                      placeholder="Type your full legal name"
+                      style={{ width: "100%", padding: "12px 14px", borderRadius: 10, border: `1.5px solid ${T.border}`, background: T.card, color: T.textPrimary, fontSize: 15, fontFamily: "Georgia, 'Times New Roman', serif", fontStyle: "italic", outline: "none", boxSizing: "border-box", marginBottom: 6 }} />
+                    <p style={{ fontSize: 10, color: T.textMuted, marginBottom: 14, lineHeight: 1.5 }}>By typing your name above and pressing the button below, you're electronically signing this agreement — dated and saved to your account the moment you submit it.</p>
+                    <button onClick={() => agreeToRewardsContract(rewardsSignatureDraft)} disabled={!canSign}
+                      style={{ width: "100%", padding: 13, borderRadius: 12, background: canSign ? T.neon : T.border, color: canSign ? T.bg : T.textMuted, fontWeight: 800, fontSize: 13, border: "none", cursor: canSign ? "pointer" : "not-allowed", boxShadow: canSign ? shadow.neon : "none" }}>
+                      Sign &amp; agree — continue to claim my reward
                     </button>
                   </NeonCard>
-                ) : (
+                    );
+                  })() : (
                   <NeonCard>
                     <div style={{ fontWeight: 900, fontSize: 16, color: T.textPrimary, marginBottom: 6 }}>Choose your gift card</div>
                     <p style={{ fontSize: 12, color: T.textSecondary, marginBottom: 12, lineHeight: 1.5 }}>🔓 Unlocked with the <strong style={{ color: T.neon }}>{coinsInfo.earned} Comeback Coins</strong> you earned along the way — {tier.label} is yours to open.</p>
@@ -3367,7 +3484,7 @@ function AppDashboard({ saved, onReset, onUpgrade, onOpenAccount, authUser }: {
 const CURTIS_CONTACT = { phone: "929-432-8785", email: "comebacktrainer@gmail.com" };
 const CURTIS_FAQ: { keywords: string[]; answer: string }[] = [
   { keywords: ["score", "gauge", "credit", "1-100", "number"], answer: "Your Recovery Score (1-100) lives on the Score tab. It updates live from your daily protocol completion, your nutrition logging, and your Journal check-ins. It reflects your whole recovery timeline, not just today." },
-  { keywords: ["plan", "subscription", "price", "cost", "pro", "elite", "upgrade", "cancel", "billing", "stripe", "refund"], answer: "Comeback has two plans: Pro ($9.99/mo) and Elite ($28.99/mo — adds your live Recovery Score, Journal, and Rewards). See full plan details any time from the Score tab. You can manage or cancel your subscription through Stripe whenever you'd like." },
+  { keywords: ["plan", "subscription", "price", "cost", "pro", "elite", "upgrade", "cancel", "billing", "stripe", "refund"], answer: "Comeback has two plans: Pro ($9.99/mo, includes Rewards) and Elite ($28.99/mo — adds your live Recovery Score and Journal on top of everything in Pro). See full plan details any time from the Score tab. You can manage or cancel your subscription through Stripe whenever you'd like." },
   { keywords: ["protocol", "today", "workout", "exercise", "task", "phase"], answer: "Your daily tasks live under the Today button (the big one in the middle of the bottom nav). The Protocol tab shows your whole recovery roadmap, phase by phase." },
   { keywords: ["squad", "post", "community", "team", "reply", "like"], answer: "Squad is your community feed with athletes recovering from the same sport and injury as you — post, like, and reply right from the Squad tab." },
   { keywords: ["diary", "journal", "feelings", "mood", "emotions", "goals"], answer: "Journal is your personal recovery journal — a new reflection prompt every day, saved day by day so nothing gets overwritten, with the option to attach a photo. Completing it also helps your Recovery Score and earns you Comeback Coins." },
