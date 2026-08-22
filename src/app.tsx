@@ -265,6 +265,10 @@ function markTrialUsed(): void {
 // the user was never issued a valid signature for.
 const PLAN_PRO_URL = "https://buy.stripe.com/5kQ3cu5P36NtcWh1ZC67S00";
 const PLAN_ELITE_URL = "https://buy.stripe.com/dRm9AS91ffjZbSd1ZC67S01";
+// Discounted Elite price for existing Pro subscribers upgrading — $17.99/mo instead of $28.99/mo,
+// since they're already paying for Pro. Separate Stripe Price + Payment Link (not a promo code),
+// so the checkout page shows the discounted total automatically with no code entry needed.
+const PLAN_ELITE_UPGRADE_FROM_PRO_URL = "https://buy.stripe.com/eVq9AS6T7efVg8t5bO67S02";
 // Stripe-hosted Customer Portal — lets a subscriber view invoices, update
 // their card, and cancel their own subscription (self-service, no email
 // needed) without ever handing Comeback their payment details directly.
@@ -2205,10 +2209,16 @@ function BodyProfileOnboarding({ onSave, onSkip }: { onSave: (p: BodyProfile) =>
 }
 
 // ── ELITE UPGRADE (inline, in-dashboard path for Pro users) ───────────────────
-function EliteUpgradeInline({ onUpgrade }: { onUpgrade: (code: string) => void }) {
+function EliteUpgradeInline({ onUpgrade, plan }: { onUpgrade: (code: string) => void; plan?: "pro" | "elite" | "trial" }) {
   const [code, setCode] = useState("");
   const [checking, setChecking] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Pro subscribers already pay monthly — sweeten the Elite upsell with a discounted price.
+  // Trial (expired) users aren't currently paying anything, so they see the normal price.
+  const isProUpgrade = plan === "pro";
+  const upgradeUrl = isProUpgrade ? PLAN_ELITE_UPGRADE_FROM_PRO_URL : PLAN_ELITE_URL;
+  const upgradePriceLabel = isProUpgrade ? "$17.99/mo" : "$28.99/mo";
 
   const handleRedeem = async () => {
     if (!code.trim()) return;
@@ -2235,9 +2245,15 @@ function EliteUpgradeInline({ onUpgrade }: { onUpgrade: (code: string) => void }
       <div style={{ display: "flex", justifyContent: "center", marginBottom: 20, opacity: 0.55, filter: "grayscale(0.3)" }}>
         <RecoveryScoreGauge score={78} size={190} />
       </div>
-      <button onClick={() => window.open(PLAN_ELITE_URL, "_blank")}
+      {isProUpgrade && (
+        <div style={{ background: `${T.neon}15`, border: `1.5px solid ${T.neon}50`, borderRadius: 12, padding: "10px 12px", marginBottom: 12, textAlign: "left" }}>
+          <div style={{ fontSize: 12, fontWeight: 800, color: T.neon, marginBottom: 2 }}>Your Pro discount is applied</div>
+          <div style={{ fontSize: 11, color: T.textSecondary, lineHeight: 1.5 }}>You're already a Pro member, so Elite is $11 off — just $17.99/mo instead of $28.99/mo. Between the two plans, that's a couple bucks back in your pocket every month.</div>
+        </div>
+      )}
+      <button onClick={() => window.open(upgradeUrl, "_blank")}
         style={{ width: "100%", padding: "14px", borderRadius: 12, background: T.neon, color: T.bg, fontWeight: 800, fontSize: 14, border: "none", cursor: "pointer", boxShadow: shadow.neon, marginBottom: 14, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
-        <Crown size={16} /> Upgrade to Elite — $28.99/mo
+        <Crown size={16} /> Upgrade to Elite — {upgradePriceLabel}{isProUpgrade && <span style={{ textDecoration: "line-through", opacity: 0.6, fontWeight: 600, marginLeft: 4 }}>$28.99</span>}
       </button>
       <div style={{ background: T.surface, borderRadius: 14, padding: 14, border: `1px solid ${T.border}`, textAlign: "left" }}>
         <div style={{ fontSize: 11, fontWeight: 700, color: T.textPrimary, marginBottom: 8 }}>Already upgraded? Enter your Elite license key</div>
@@ -3568,7 +3584,7 @@ function AppDashboard({ saved, onReset, onUpgrade, onOpenAccount, authUser }: {
           </div>
           <p style={{ fontSize: 13, color: T.textSecondary, marginBottom: 16 }}>A personal space to reflect — your own words, saved day by day. Nothing here is shared to Squad.</p>
           {!eliteActive ? (
-            <EliteUpgradeInline onUpgrade={onUpgrade} />
+            <EliteUpgradeInline onUpgrade={onUpgrade} plan={saved.plan} />
           ) : (
             <>
               <NeonCard style={{ marginBottom: 16 }}>
@@ -3637,7 +3653,7 @@ function AppDashboard({ saved, onReset, onUpgrade, onOpenAccount, authUser }: {
             </Card>
           )}
           {!eliteActive ? (
-            <EliteUpgradeInline onUpgrade={onUpgrade} />
+            <EliteUpgradeInline onUpgrade={onUpgrade} plan={saved.plan} />
           ) : (
             <>
               <h1 style={{ fontWeight:900, fontSize:22, color:T.textPrimary, marginBottom:4 }}>Your Recovery Score</h1>
