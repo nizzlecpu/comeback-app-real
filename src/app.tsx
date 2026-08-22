@@ -265,11 +265,13 @@ function markTrialUsed(): void {
 // the user was never issued a valid signature for.
 const PLAN_PRO_URL = "https://buy.stripe.com/5kQ3cu5P36NtcWh1ZC67S00";
 const PLAN_ELITE_URL = "https://buy.stripe.com/dRm9AS91ffjZbSd1ZC67S01";
-// The discounted $17.99/mo Pro→Elite upgrade price has NO public link/constant here on purpose —
-// its checkout URL is only ever handed back by the create-elite-upgrade-session endpoint on our
-// Cloudflare Worker (comeback-license-webhook), and only after it confirms with Stripe that the
-// requesting email has an active Pro subscription. See ELITE_UPGRADE_SESSION_URL and
-// EliteUpgradeInline below.
+// The discounted $14.99 Pro→Elite upgrade price (first month only, then $28.99/mo like any
+// other Elite subscriber) has NO public link/constant here on purpose — its checkout URL is
+// only ever handed back by the create-elite-upgrade-session endpoint on our Cloudflare Worker
+// (comeback-license-webhook), and only after it confirms with Stripe that the requesting email
+// has an active Pro subscription. That same Worker also schedules the old Pro subscription to
+// stop renewing once Elite is active, so the athlete is never billed for both. See
+// ELITE_UPGRADE_SESSION_URL and EliteUpgradeInline below.
 // Stripe-hosted Customer Portal — lets a subscriber view invoices, update
 // their card, and cancel their own subscription (self-service, no email
 // needed) without ever handing Comeback their payment details directly.
@@ -2218,15 +2220,17 @@ function EliteUpgradeInline({ onUpgrade, plan }: { onUpgrade: (code: string) => 
   const [checking, setChecking] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Pro subscribers already pay monthly — sweeten the Elite upsell with a discounted price.
-  // Trial (expired) users aren't currently paying anything, so they see the normal price.
+  // Pro subscribers already pay monthly — sweeten the Elite upsell with a discounted first
+  // month ($14.99), then it renews at the normal $28.99/mo from month two on, same as everyone
+  // else. Trial (expired) users aren't currently paying anything, so they see the normal price
+  // from the start.
   const isProUpgrade = plan === "pro";
-  const upgradePriceLabel = isProUpgrade ? "$17.99/mo" : "$28.99/mo";
+  const upgradePriceLabel = isProUpgrade ? "$14.99 first month" : "$28.99/mo";
 
-  // The $17.99 price is real and live in Stripe, so anyone with the raw link could otherwise
-  // use it. To stop that, the discounted checkout is never opened directly — instead we ask
-  // for the Pro checkout email and hand it to a server function that checks Stripe itself for
-  // an active Pro subscription before creating a real Checkout Session. Only then do we open it.
+  // The $14.99 first-month price is real and live in Stripe, so anyone with the raw link could
+  // otherwise use it. To stop that, the discounted checkout is never opened directly — instead
+  // we ask for the Pro checkout email and hand it to a server function that checks Stripe itself
+  // for an active Pro subscription before creating a real Checkout Session. Only then do we open it.
   const [showEmailStep, setShowEmailStep] = useState(false);
   const [proEmail, setProEmail] = useState("");
   const [proSubmitting, setProSubmitting] = useState(false);
@@ -2297,13 +2301,13 @@ function EliteUpgradeInline({ onUpgrade, plan }: { onUpgrade: (code: string) => 
       {isProUpgrade && (
         <div style={{ background: `${T.neon}15`, border: `1.5px solid ${T.neon}50`, borderRadius: 12, padding: "10px 12px", marginBottom: 12, textAlign: "left" }}>
           <div style={{ fontSize: 12, fontWeight: 800, color: T.neon, marginBottom: 2 }}>Your Pro discount is applied</div>
-          <div style={{ fontSize: 11, color: T.textSecondary, lineHeight: 1.5 }}>You're already a Pro member, so Elite is $11 off — just $17.99/mo instead of $28.99/mo. Between the two plans, that's a couple bucks back in your pocket every month. We confirm your Pro subscription with Stripe first, so this stays exclusive to Pro members.</div>
+          <div style={{ fontSize: 11, color: T.textSecondary, lineHeight: 1.5 }}>You're already a Pro member, so your first month of Elite is just $14.99. Starting month two it renews at the standard $28.99/mo, and this replaces your Pro subscription — you won't be billed for Pro again. We confirm your Pro subscription with Stripe first, so this stays exclusive to Pro members.</div>
         </div>
       )}
       {!showEmailStep ? (
         <button onClick={handleUpgradeClick}
           style={{ width: "100%", padding: "14px", borderRadius: 12, background: T.neon, color: T.bg, fontWeight: 800, fontSize: 14, border: "none", cursor: "pointer", boxShadow: shadow.neon, marginBottom: 14, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
-          <Crown size={16} /> Upgrade to Elite — {upgradePriceLabel}{isProUpgrade && <span style={{ textDecoration: "line-through", opacity: 0.6, fontWeight: 600, marginLeft: 4 }}>$28.99</span>}
+          <Crown size={16} /> Upgrade to Elite — {upgradePriceLabel}{isProUpgrade && <span style={{ opacity: 0.75, fontWeight: 600, marginLeft: 4 }}>(then $28.99/mo)</span>}
         </button>
       ) : (
         <div style={{ background: T.surface, borderRadius: 14, padding: 14, border: `1px solid ${T.border}`, textAlign: "left", marginBottom: 14 }}>
