@@ -265,14 +265,18 @@ function markTrialUsed(): void {
 // the user was never issued a valid signature for.
 const PLAN_PRO_URL = "https://buy.stripe.com/5kQ3cu5P36NtcWh1ZC67S00";
 const PLAN_ELITE_URL = "https://buy.stripe.com/dRm9AS91ffjZbSd1ZC67S01";
-// Discounted Elite price for existing Pro subscribers upgrading — $17.99/mo instead of $28.99/mo,
-// since they're already paying for Pro. Separate Stripe Price + Payment Link (not a promo code),
-// so the checkout page shows the discounted total automatically with no code entry needed.
-const PLAN_ELITE_UPGRADE_FROM_PRO_URL = "https://buy.stripe.com/eVq9AS6T7efVg8t5bO67S02";
+// The discounted $17.99/mo Pro→Elite upgrade price has NO public link/constant here on purpose —
+// its checkout URL is only ever handed back by the create-elite-upgrade-session endpoint on our
+// Cloudflare Worker (comeback-license-webhook), and only after it confirms with Stripe that the
+// requesting email has an active Pro subscription. See ELITE_UPGRADE_SESSION_URL and
+// EliteUpgradeInline below.
 // Stripe-hosted Customer Portal — lets a subscriber view invoices, update
 // their card, and cancel their own subscription (self-service, no email
 // needed) without ever handing Comeback their payment details directly.
 const STRIPE_CUSTOMER_PORTAL_URL = "https://billing.stripe.com/p/login/5kQ3cu5P36NtcWh1ZC67S00";
+// Cloudflare Worker that re-checks Stripe server-side before ever creating a discounted
+// Elite-upgrade checkout session — see the comment above PLAN_ELITE_URL.
+const ELITE_UPGRADE_SESSION_URL = "https://comeback-license-webhook.manucaltabiano.workers.dev/create-elite-upgrade-session";
 const PUBLIC_KEY_JWK: JsonWebKey = {
   key_ops: ["verify"], ext: true, kty: "EC",
   x: "7Pz2UHGSPeHHz1BdjEBSA3AyB7n5ONAo6Zig4kAmrgw",
@@ -2217,8 +2221,53 @@ function EliteUpgradeInline({ onUpgrade, plan }: { onUpgrade: (code: string) => 
   // Pro subscribers already pay monthly — sweeten the Elite upsell with a discounted price.
   // Trial (expired) users aren't currently paying anything, so they see the normal price.
   const isProUpgrade = plan === "pro";
-  const upgradeUrl = isProUpgrade ? PLAN_ELITE_UPGRADE_FROM_PRO_URL : PLAN_ELITE_URL;
   const upgradePriceLabel = isProUpgrade ? "$17.99/mo" : "$28.99/mo";
+
+  // The $17.99 price is real and live in Stripe, so anyone with the raw link could otherwise
+  // use it. To stop that, the discounted checkout is never opened directly — instead we ask
+  // for the Pro checkout email and hand it to a server function that checks Stripe itself for
+  // an active Pro subscription before creating a real Checkout Session. Only then do we open it.
+  const [showEmailStep, setShowEmailStep] = useState(false);
+  const [proEmail, setProEmail] = useState("");
+  const [proSubmitting, setProSubmitting] = useState(false);
+  const [proError, setProError] = useState<string | null>(null);
+  const [proOpened, setProOpened] = useState(false);
+
+  const handleUpgradeClick = () => {
+    if (!isProUpgrade) {
+      window.open(PLAN_ELITE_URL, "_blank");
+      return;
+    }
+    setShowEmailStep(true);
+  };
+
+  const handleProCheckout = async () => {
+    const email = proEmail.trim();
+    if (!email) return;
+    setProSubmitting(true); setProError(null); setProOpened(false);
+    try {
+      const res = await fetch(ELITE_UPGRADE_SESSION_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      const data: { url?: string; error?: string } = await res.json().catch(() => ({}));
+      if (!res.ok || !data.url) {
+        setProError(
+          res.status === 403
+            ? "We couldn't find an active Pro subscription for that email. Double-check it's the exact email you checked out with."
+            : "Something went wrong — please try again in a moment."
+        );
+        return;
+      }
+      window.open(data.url, "_blank");
+      setProOpened(true);
+    } catch {
+      setProError("Couldn't reach the server — check your connection and try again.");
+    } finally {
+      setProSubmitting(false);
+    }
+  };
 
   const handleRedeem = async () => {
     if (!code.trim()) return;
@@ -2248,13 +2297,36 @@ function EliteUpgradeInline({ onUpgrade, plan }: { onUpgrade: (code: string) => 
       {isProUpgrade && (
         <div style={{ background: `${T.neon}15`, border: `1.5px solid ${T.neon}50`, borderRadius: 12, padding: "10px 12px", marginBottom: 12, textAlign: "left" }}>
           <div style={{ fontSize: 12, fontWeight: 800, color: T.neon, marginBottom: 2 }}>Your Pro discount is applied</div>
-          <div style={{ fontSize: 11, color: T.textSecondary, lineHeight: 1.5 }}>You're already a Pro member, so Elite is $11 off — just $17.99/mo instead of $28.99/mo. Between the two plans, that's a couple bucks back in your pocket every month.</div>
+          <div style={{ fontSize: 11, color: T.textSecondary, lineHeight: 1.5 }}>You're already a Pro member, so Elite is $11 off — just $17.99/mo instead of $28.99/mo. Between the two plans, that's a couple bucks back in your pocket every month. We confirm your Pro subscription with Stripe first, so this stays exclusive to Pro members.</div>
         </div>
       )}
-      <button onClick={() => window.open(upgradeUrl, "_blank")}
-        style={{ width: "100%", padding: "14px", borderRadius: 12, background: T.neon, color: T.bg, fontWeight: 800, fontSize: 14, border: "none", cursor: "pointer", boxShadow: shadow.neon, marginBottom: 14, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
-        <Crown size={16} /> Upgrade to Elite — {upgradePriceLabel}{isProUpgrade && <span style={{ textDecoration: "line-through", opacity: 0.6, fontWeight: 600, marginLeft: 4 }}>$28.99</span>}
-      </button>
+      {!showEmailStep ? (
+        <button onClick={handleUpgradeClick}
+          style={{ width: "100%", padding: "14px", borderRadius: 12, background: T.neon, color: T.bg, fontWeight: 800, fontSize: 14, border: "none", cursor: "pointer", boxShadow: shadow.neon, marginBottom: 14, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+          <Crown size={16} /> Upgrade to Elite — {upgradePriceLabel}{isProUpgrade && <span style={{ textDecoration: "line-through", opacity: 0.6, fontWeight: 600, marginLeft: 4 }}>$28.99</span>}
+        </button>
+      ) : (
+        <div style={{ background: T.surface, borderRadius: 14, padding: 14, border: `1px solid ${T.border}`, textAlign: "left", marginBottom: 14 }}>
+          <div style={{ fontSize: 12, fontWeight: 800, color: T.textPrimary, marginBottom: 4 }}>Confirm your Pro email</div>
+          <div style={{ fontSize: 11, color: T.textSecondary, marginBottom: 8, lineHeight: 1.5 }}>Enter the email you used when you subscribed to Pro — we check it against Stripe before opening your discounted checkout.</div>
+          <input type="email" value={proEmail} onChange={e => { setProEmail(e.target.value); setProError(null); }} placeholder="you@example.com" autoFocus
+            style={{ width: "100%", padding: "10px 12px", borderRadius: 10, border: `1.5px solid ${proError ? T.red : T.border}`, background: T.card, color: T.textPrimary, fontSize: 13, outline: "none", boxSizing: "border-box", marginBottom: 8 }} />
+          {proError && (
+            <div style={{ fontSize: 11, color: T.red, marginBottom: 8, lineHeight: 1.5 }}>
+              {proError} Need help? {CURTIS_CONTACT.phone} · {CURTIS_CONTACT.email}
+            </div>
+          )}
+          {proOpened && !proError && <div style={{ fontSize: 11, color: T.neon, marginBottom: 8 }}>✓ Opened your secure checkout in a new tab.</div>}
+          <button onClick={handleProCheckout} disabled={proSubmitting || !proEmail.trim()}
+            style={{ width: "100%", padding: "12px", borderRadius: 10, background: proEmail.trim() ? T.neon : T.border, color: proEmail.trim() ? T.bg : T.textMuted, fontWeight: 800, fontSize: 13, border: "none", cursor: proEmail.trim() ? "pointer" : "not-allowed", marginBottom: 6 }}>
+            {proSubmitting ? "Checking…" : "Continue to discounted checkout"}
+          </button>
+          <button onClick={() => { setShowEmailStep(false); setProError(null); }}
+            style={{ width: "100%", background: "none", border: "none", color: T.textMuted, fontSize: 11, cursor: "pointer", padding: "2px 0" }}>
+            Cancel
+          </button>
+        </div>
+      )}
       <div style={{ background: T.surface, borderRadius: 14, padding: 14, border: `1px solid ${T.border}`, textAlign: "left" }}>
         <div style={{ fontSize: 11, fontWeight: 700, color: T.textPrimary, marginBottom: 8 }}>Already upgraded? Enter your Elite license key</div>
         <input value={code} onChange={e => setCode(e.target.value)} placeholder="CBK1.xxxxx.yyyyy"
